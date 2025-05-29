@@ -1,10 +1,20 @@
+# src/Makefile
 CC=clang
-CFLAGS=-O2 -Wall -target arm64-apple-macos11
+CFLAGS=-Wall -O2 -target arm64-apple-macos11
 
-all: jit_runtime
+all: jit_runtime_test
 
-jit_runtime: main.c dynlib.c dispatch_stub.s
-	$(CC) $(CFLAGS) main.c dynlib.c dispatch_stub.s -o jit_runtime
+jit_runtime_test: main.o dispatch_table.o asm_dispatch.o
+	$(CC) $(CFLAGS) -o jit_runtime_test main.o dispatch_table.o asm_dispatch.o
+
+main.o: main.c dispatch_table.h
+	$(CC) $(CFLAGS) -c main.c
+
+dispatch_table.o: dispatch_table.c dispatch_table.h
+	$(CC) $(CFLAGS) -c dispatch_table.c
+
+asm_dispatch.o: asm_dispatch.S
+	$(CC) $(CFLAGS) -c asm_dispatch.S
 
 clean:
-	rm -f jit_runtime
+	rm -f *.o jit_runtime_test
