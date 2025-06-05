@@ -17,7 +17,7 @@ extern jit_func_t dispatch_table[PAGE_MAX][OPCODE_MAX];
 extern jit_func_t cold_func_pool[PAGE_MAX][OPCODE_MAX];
 
 // 热区：可执行内存区域
-extern uint8_t hot_exec_area[HOT_EXEC_SIZE];
+extern uint8_t* hot_exec_area;  // → 指针
 
 // 函数加载器
 void load_func_to_hot(uint8_t page, uint8_t opcode);
