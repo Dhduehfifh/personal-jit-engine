@@ -1,0 +1,18 @@
+| 编号 | 函数名     | 功能分类   | 参数/说明                 | 建议 opcode |
+| -- | ------- | ------ | --------------------- | --------- |
+| 01 | `alloc` | 内存分配   | `size → reg`          | `0x01`    |
+| 02 | `write` | 内存写入   | `ptr offset value`    | `0x02`    |
+| 03 | `read`  | 内存读取   | `ptr offset → reg`    | `0x03`    |
+| 04 | `copy`  | 内存复制   | `dst src size`        | `0x04`    |
+| 05 | `fill`  | 内存清空   | `ptr size value`      | `0x05`    |
+| 06 | `add`   | 算术运算   | `a b → reg`           | `0x06`    |
+| 07 | `sub`   | 算术运算   | `a b → reg`           | `0x07`    |
+| 08 | `mul`   | 算术运算   | `a b → reg`           | `0x08`    |
+| 09 | `div`   | 算术运算   | `a b → reg`           | `0x09`    |
+| 10 | `eq`    | 逻辑判断   | `a b → reg (0 or 1)`  | `0x0A`    |
+| 11 | `jmp`   | 非条件跳转  | `addr`                | `0x0B`    |
+| 12 | `cjmp`  | 条件跳转   | `cond addr`           | `0x0C`    |
+| 13 | `call`  | 调用函数指针 | `func_ptr [opt args]` | `0x0D`    |
+| 14 | `ret`   | 返回     | `value`               | `0x0E`    |
+| 15 | `print` | 调试输出   | `value`               | `0x0F`    |
+| 16 | `exit`  | 停止程序   | `code`                | `0x10`    |
