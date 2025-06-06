@@ -1,19 +1,17 @@
-CC=clang
-CFLAGS=-target arm64-apple-macos11 -O2
 
-all: jit_test
+all: jit_runtime
 
-jit_test: main.o jit_core.o jit_dispatch.o
-	$(CC) -o jit_test main.o jit_core.o jit_dispatch.o
+jit_runtime: main.o dispatch_table.o asm_jump.o
+	clang -O2 -target arm64-apple-macos11 -o jit_runtime main.o dispatch_table.o asm_jump.o
 
-main.o: main.c jit_core.h
-	$(CC) $(CFLAGS) -c main.c
+main.o: main.c
+	clang -O2 -target arm64-apple-macos11 -c main.c
 
-jit_core.o: jit_core.c jit_core.h
-	$(CC) $(CFLAGS) -c jit_core.c
+dispatch_table.o: dispatch_table.c
+	clang -O2 -target arm64-apple-macos11 -c dispatch_table.c
 
-jit_dispatch.o: jit_dispatch.S
-	$(CC) $(CFLAGS) -c jit_dispatch.S
+asm_jump.o: asm_jump.S
+	clang -O2 -target arm64-apple-macos11 -c asm_jump.S
 
 clean:
-	rm -f *.o jit_test
+	rm -f *.o jit_runtime
