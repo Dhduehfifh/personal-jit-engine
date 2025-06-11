@@ -1,27 +1,33 @@
 #include "dispatch_table.h"
-#include <stdio.h>
+#include <stddef.h>
 
-void* dispatch_table[MAX_OPCODES] = {0};
+#define MAX_OPCODES 256
+static DispatchEntry dispatch_table[MAX_OPCODES] = {{0}};
 
-// 示例事件实体函数
-void handler_malloc() {
-    printf("[EVENT] malloc() called\n");
-}
-void handler_write() {
-    printf("[EVENT] write() called\n");
-}
-void handler_custom() {
-    printf("[EVENT] custom event triggered\n");
-}
-
-// 初始化
-__attribute__((constructor))
-void init_dispatch_table() {
-    register_handler(0x01, handler_malloc);
-    register_handler(0x02, handler_write);
-    register_handler(0x03, handler_custom);
+void register_handler(uint8_t opcode, DynamicHandler handler, 
+                     void* context, uint8_t is_mutable) {
+    if (opcode >= MAX_OPCODES) return;
+    dispatch_table[opcode] = (DispatchEntry){
+        .handler = handler,
+        .context = context,
+        .is_mutable = is_mutable
+    };
 }
 
-void register_handler(uint8_t opcode, void (*handler)(void)) {
-    dispatch_table[opcode] = handler;
+void trigger_handler(uint8_t opcode) {
+    if (opcode >= MAX_OPCODES || !dispatch_table[opcode].handler) return;
+    dispatch_table[opcode].handler(dispatch_table[opcode].context);
+}
+
+void update_handler(uint8_t opcode, DynamicHandler new_handler) {
+    if (opcode < MAX_OPCODES && dispatch_table[opcode].is_mutable) {
+        dispatch_table[opcode].handler = new_handler;
+    }
+}
+
+// 新增函数实现
+void update_handler_context(uint8_t opcode, void* new_context) {
+    if (opcode < MAX_OPCODES) {
+        dispatch_table[opcode].context = new_context;
+    }
 }

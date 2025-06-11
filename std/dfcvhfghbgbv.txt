@@ -1,0 +1,124 @@
+//DeepSeek给我的开发顺序，暂时记一下，ds服务器太他妈卡了半天输不上去一个
+
+以下是按开发顺序排列的完整实现清单，包含内存布局和关键指针定义，后续可逐步实现并验证每个模块：
+
+---
+
+### **开发路线图与内存布局**
+
+#### **阶段1：基础设施**
+| 序号 | 模块                | 文件          | 关键指针/地址                  | 实现要点                     | 验证方法                  |
+|------|---------------------|---------------|--------------------------------|------------------------------|---------------------------|
+| 1    | 内存管理            | `memory.c`    | `uint8_t* heap_base = 0x100000000` | 实现`jit_malloc/jit_free` | `valgrind --leak-check=full` |
+| 2    | 指令表初始化        | `dispatch.c`  | `void* inst_table[256] @ 0x200000000` | 填充基础opcode            | `nm -gC uranium_jit \| grep inst_table` |
+| 3    | 汇编调度器          | `dispatch.S`  | `_jit_dispatch @ TEXT段`       | 5指令内完成跳转            | 反汇编验证`otool -tvV`     |
+
+#### **阶段2：核心指令**
+| 4    | 内存操作指令        | `ops_mem.S`   | `_op_mov @ TEXT+0x1000`        | 对齐内存访问               | 测试`MOV [A], [B]`跨页访问 |
+| 5    | 算术指令            | `ops_math.c`  | `op_add -> C函数`              | 用内联汇编优化热点         | 循环1亿次测吞吐量         |
+| 6    | 控制流指令          | `ops_ctrl.S`  | `_op_jmp @ TEXT+0x2000`        | 无分支预测惩罚             | 用`perf stat`验证分支缺失  |
+
+#### **阶段3：对象模型**
+| 7    | 对象头定义          | `object.h`    | `struct JitObject @ DATA段`    | 包含虚表指针+类型ID        | `sizeof(JitObject)==16`   |
+| 8    | 虚表分配            | `vtable.c`    | `void** vtable = heap_base+0x10000` | 每个类独立虚表            | 偏移量检查`obj->vtable[0]` |
+| 9    | 方法调用            | `invoke.S`    | `_invoke_virtual @ TEXT+0x3000`| 双跳转：虚表→实际方法      | 对比直接调用耗时           |
+
+#### **阶段4：安全防护**
+| 10   | 内存访问校验        | `safety.c`    | `uintptr_t MEM_LIMIT = 0x400000000` | 所有指针操作前校验范围     | 注入非法地址触发panic     |
+| 11   | 指令签名            | `sign.c`      | `const uint32_t SIG_MAGIC = 0xDEADBEEF` | 校验handler签名           | 篡改指令表后测试拒绝执行  |
+
+#### **阶段5：用户扩展**
+| 12   | 动态指令注册        | `extend.c`    | `void** user_table @ heap_base+0x20000` | 隔离用户opcode区          | 测试自定义指令覆盖率       |
+
+---
+
+### **关键指针布局示意**
+```text
+0x000000000-0x0FFFFFFF  : TEXT段（代码）
+  ├─ 0x1000 : _jit_dispatch
+  ├─ 0x2000 : _op_mov
+  └─ 0x3000 : _invoke_virtual
+
+0x100000000-0x1FFFFFFF  : 堆(HEAP)
+  ├─ 0x100000000 : heap_base
+  ├─ 0x100010000 : 虚表区
+  └─ 0x100020000 : 用户扩展区
+
+0x200000000            : inst_table（只读数据段）
+```
+
+---
+
+### **逐步实现问答示例**
+
+#### **Q1：如何实现`memory.c`的分配器？**
+```c
+// 在memory.c中
+#define HEAP_SIZE (1 << 30) // 1GB
+static uint8_t* heap_ptr = NULL;
+
+void* jit_malloc(size_t size, const char* tag) {
+    if (!heap_ptr) {
+        heap_ptr = mmap(NULL, HEAP_SIZE, PROT_READ|PROT_WRITE,
+                       MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+    }
+    
+    if (heap_ptr + size > heap_ptr + HEAP_SIZE) {
+        jit_panic(OUT_OF_MEMORY);
+    }
+    
+    void* p = heap_ptr;
+    heap_ptr += size;
+    return p;
+}
+```
+**验证：**
+```bash
+echo "void* p = jit_malloc(1024, 'test');" | gcc -E - | grep mmap
+```
+
+#### **Q2：指令表初始化怎么写？**
+```c
+// dispatch.c
+extern void _op_mov(), _op_add();
+
+void init_instructions() {
+    inst_table[0x01] = _op_mov;  // MOV指令
+    inst_table['+'] = _op_add;   // 加法
+}
+```
+**检查：**
+```bash
+nm -gC build/dispatch.o | grep inst_table
+```
+
+#### **Q3：汇编调度器如何优化？**
+```assembly
+# dispatch.S
+.align 4
+_jit_dispatch:
+    adrp x16, inst_table@PAGE        // 1周期
+    add x16, x16, inst_table@PAGEOFF // 1周期
+    ldr x17, [x16, x0, lsl #3]       // 2周期
+    br x17                           // 1周期
+```
+**周期验证：**
+```bash
+xcrun xctrace record --template 'Time Profiler' --launch ./uranium_jit --bench dispatch
+```
+
+---
+
+### **后续开发流程**
+
+1. **按序号实现每个模块**，完成一个立即验证
+2. **遇到具体问题时**，提供：
+   - 相关代码片段
+   - 观察到的现象
+   - 已尝试的调试方法
+3. **关键节点检查**：
+   - 阶段1完成后：内存无泄漏+调度器<5周期
+   - 阶段3完成后：对象方法调用<10周期
+   - 阶段5完成后：用户可新增指令
+
+需要详细讨论某个模块时，随时提供具体代码和问题现象。

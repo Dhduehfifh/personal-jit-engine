@@ -1,17 +1,23 @@
+CC = clang
+CFLAGS = -Wall -O3 -fPIC -mmacosx-version-min=12.0
+ASFLAGS = -arch arm64
 
-all: jit_runtime
+SRCS = main.c dispatch.c memory.c dispatch.S
+OBJS = $(addprefix build/,$(notdir $(SRCS:.c=.o)))
+OBJS := $(OBJS:.S=.o)
 
-jit_runtime: main.o dispatch_table.o asm_jump.o
-	clang -O2 -target arm64-apple-macos11 -o jit_runtime main.o dispatch_table.o asm_jump.o
+all: uranium_jit
 
-main.o: main.c
-	clang -O2 -target arm64-apple-macos11 -c main.c
+uranium_jit: $(OBJS)
+    $(CC) $(CFLAGS) $^ -o $@
 
-dispatch_table.o: dispatch_table.c
-	clang -O2 -target arm64-apple-macos11 -c dispatch_table.c
+build/%.o: src/%.c
+    @mkdir -p build
+    $(CC) $(CFLAGS) -c $< -o $@
 
-asm_jump.o: asm_jump.S
-	clang -O2 -target arm64-apple-macos11 -c asm_jump.S
+build/%.o: src/%.S
+    @mkdir -p build
+    $(CC) $(ASFLAGS) -c $< -o $@
 
 clean:
-	rm -f *.o jit_runtime
+    rm -rf build uranium_jit
