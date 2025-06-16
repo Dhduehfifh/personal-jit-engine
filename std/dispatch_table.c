@@ -1,33 +1,56 @@
 #include "dispatch_table.h"
-#include <stddef.h>
+#include <stdio.h>
+extern void _op_add(), _op_sub(), _op_mul(), _op_div();
 
-#define MAX_OPCODES 256
-static DispatchEntry dispatch_table[MAX_OPCODES] = {{0}};
+static DispatchEntry dispatch_table[MAX_OPCODES];
 
-void register_handler(uint8_t opcode, DynamicHandler handler, 
-                     void* context, uint8_t is_mutable) {
-    if (opcode >= MAX_OPCODES) return;
-    dispatch_table[opcode] = (DispatchEntry){
-        .handler = handler,
-        .context = context,
-        .is_mutable = is_mutable
-    };
+static void handler_noop(void* context) {
+    (void)context;
+    printf("[DISPATCH] NOOP handler triggered\n");
+}
+
+void init_dispatch_table() {
+    for (int i = 0; i < MAX_OPCODES; ++i) {
+        dispatch_table[i].handler = handler_noop;
+        dispatch_table[i].context = NULL;
+        dispatch_table[i].is_mutable = 1; // 默认支持动态更新
+    }
+
+    dispatch_table[0x04].handler = (DynamicHandler)_op_add;
+    dispatch_table[0x05].handler = (DynamicHandler)_op_sub;
+    dispatch_table[0x06].handler = (DynamicHandler)_op_mul;
+    dispatch_table[0x07].handler = (DynamicHandler)_op_div;
+}
+
+void register_handler(uint8_t opcode, DynamicHandler handler, void* context, uint8_t is_mutable) {
+    dispatch_table[opcode].handler = handler;
+    dispatch_table[opcode].context = context;
+    dispatch_table[opcode].is_mutable = is_mutable;
 }
 
 void trigger_handler(uint8_t opcode) {
-    if (opcode >= MAX_OPCODES || !dispatch_table[opcode].handler) return;
-    dispatch_table[opcode].handler(dispatch_table[opcode].context);
+    if (opcode >= MAX_OPCODES) {
+        printf("[ERROR] Invalid opcode 0x%02X\n", opcode);
+        return;
+    }
+    DispatchEntry* entry = &dispatch_table[opcode];
+    entry->handler(entry->context);
 }
 
 void update_handler(uint8_t opcode, DynamicHandler new_handler) {
-    if (opcode < MAX_OPCODES && dispatch_table[opcode].is_mutable) {
-        dispatch_table[opcode].handler = new_handler;
+    if (opcode >= MAX_OPCODES || !dispatch_table[opcode].is_mutable) {
+        printf("[WARN] Opcode 0x%02X is not mutable or invalid\n", opcode);
+        return;
     }
+    dispatch_table[opcode].handler = new_handler;
 }
 
-// 新增函数实现
 void update_handler_context(uint8_t opcode, void* new_context) {
-    if (opcode < MAX_OPCODES) {
-        dispatch_table[opcode].context = new_context;
+    if (opcode >= MAX_OPCODES || !dispatch_table[opcode].is_mutable) {
+        printf("[WARN] Cannot update context for opcode 0x%02X\n", opcode);
+        return;
     }
+    dispatch_table[opcode].context = new_context;
 }
+
+

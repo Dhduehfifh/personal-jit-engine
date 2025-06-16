@@ -1,23 +1,33 @@
-CC = clang
-CFLAGS = -Wall -O3 -fPIC -mmacosx-version-min=12.0
-ASFLAGS = -arch arm64
+# 编译器
+CC = gcc
+CFLAGS = -Wall -O3 -fPIC
+ASFLAGS =
+LDFLAGS = -no-pie
 
-SRCS = main.c dispatch.c memory.c dispatch.S
-OBJS = $(addprefix build/,$(notdir $(SRCS:.c=.o)))
+# 源文件
+SRCS = main.c dispatch.c memory.c jit_panic.c dispatch_table.c ops_math.asm
+OBJS = $(SRCS:.c=.o)
+OBJS := $(OBJS:.asm=.o)
 OBJS := $(OBJS:.S=.o)
 
-all: uranium_jit
+# 输出目标
+TARGET = jit_engine
 
-uranium_jit: $(OBJS)
-    $(CC) $(CFLAGS) $^ -o $@
+all: $(TARGET)
 
-build/%.o: src/%.c
-    @mkdir -p build
-    $(CC) $(CFLAGS) -c $< -o $@
+$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
 
-build/%.o: src/%.S
-    @mkdir -p build
-    $(CC) $(ASFLAGS) -c $< -o $@
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+%.o: %.S
+	$(CC) $(ASFLAGS) -c $< -o $@
+
+%.o: %.asm
+	nasm -f elf64 $< -o $@
 
 clean:
-    rm -rf build uranium_jit
+	rm -f $(OBJS) $(TARGET)
+
+.PHONY: all clean

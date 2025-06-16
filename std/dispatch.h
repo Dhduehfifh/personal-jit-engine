@@ -1,13 +1,9 @@
-// dispatch.h
 #pragma once
-#include <stdint.h>
 
-typedef struct {
-    uint64_t x[29];
-    uint64_t fp, lr, sp;
-} JitContext;
+#include "memory.h"
 
-extern void (*dispatch_table[256])(JitContext*);
+void jit_program(JitContext* ctx);
 
-void init_dispatch_table();
-void jit_dispatch(uint8_t opcode, JitContext* ctx);
+// 导出 handler 给外部调用
+void jit_alloc_page_handler(void* ctx);
+void jit_free_page_handler(void* ctx);

@@ -1,40 +1,73 @@
-// main.c
-#include "dispatch.h"
+#include "dispatch_table.h"
 #include "memory.h"
+#include "dispatch.h"
 #include <stdio.h>
+#include <pthread.h>
 
-// 寄存器上下文结构（根据ARM64 ABI）
-typedef struct {
-    uint64_t x[29];  // 通用寄存器x0-x28
-    uint64_t fp;     // 帧指针x29
-    uint64_t lr;     // 链接寄存器x30
-    uint64_t sp;     // 栈指针x31
-} JitContext;
+// 准备参数函数：写入冷区（data_page）
+void prepare_args(JitContext* ctx, int a, int b) {
+    if (!ctx->data_page) {
+        printf("[ERROR] Data page not allocated\n");
+        return;
+    }
+    int* base = (int*)ctx->data_page;
+    base[0] = a;  // operand1
+    base[1] = b;  // operand2
+    base[2] = 0;  // result placeholder
+}
 
-// 模拟指令执行后的寄存器状态
-static JitContext cpu_context;
+// 显示结果函数：从冷区读取结果
+void print_result(JitContext* ctx, const char* op) {
+    int* base = (int*)ctx->data_page;
+    printf("[RESULT] %d %s %d = %d\n", base[0], op, base[1], base[2]);
+}
+
+// 子线程函数：执行 handler
+void* exec_handler(void* arg) {
+    uint8_t opcode = *(uint8_t*)arg;
+    trigger_handler(opcode);
+    return NULL;
+}
 
 int main() {
-    init_memory_system();
+    JitContext ctx;
+    jit_init(&ctx);
+
+    // 初始化指令表（0x04 ~ 0x07）
     init_dispatch_table();
 
-    // 测试分配→释放流程
-    uint8_t op_alloc = 0x01;
-    uint8_t op_free = 0x02;
+    // 注册 alloc/free 动态指令
+    register_handler(0x01, jit_alloc_page_handler, &ctx, 1);
+    register_handler(0x02, jit_free_page_handler, &ctx, 1);
 
-    // 1. 执行分配指令（0x01）
-    cpu_context.x[0] = op_alloc;  // opcode通过x0传递
-    jit_dispatch(op_alloc);
-    
-    // 获取返回值（ARM64下x0存放返回值）
-    void* allocated_page = (void*)cpu_context.x[0];
-    printf("Allocated page at: %p\n", allocated_page);
+    // 分配两页（code + data）
+    printf("[TEST] Triggering alloc (0x01)\n");
+    trigger_handler(0x01);
+    printf("[TEST] Alloc done. Code page: %p | Data page: %p\n", ctx.code_page, ctx.data_page);
 
-    // 2. 执行释放指令（0x02）
-    cpu_context.x[0] = op_free;   // opcode
-    cpu_context.x[1] = (uint64_t)allocated_page;  // 参数1：要释放的地址
-    jit_dispatch(op_free);
-    printf("Page freed\n");
+    // 设置参数
+    prepare_args(&ctx, 100, 5);
+
+    // opcode + 符号表
+    uint8_t opcodes[] = {0x04, 0x05, 0x06, 0x07};  // add, sub, mul, div
+    const char* opsym[] = {"+", "-", "*", "/"};
+
+    for (int i = 0; i < 4; ++i) {
+        pthread_t thread;
+        printf("[THREAD] Executing opcode 0x%02X (%s)\n", opcodes[i], opsym[i]);
+
+        // 启动线程执行 handler
+        pthread_create(&thread, NULL, exec_handler, &opcodes[i]);
+        pthread_join(thread, NULL);
+
+        // 打印计算结果
+        print_result(&ctx, opsym[i]);
+    }
+
+    // 清理
+    printf("[TEST] Triggering free (0x02)\n");
+    trigger_handler(0x02);
+    printf("[TEST] Free done.\n");
 
     return 0;
 }

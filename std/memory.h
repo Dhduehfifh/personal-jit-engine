@@ -1,17 +1,15 @@
 // memory.h
 #pragma once
-#include <stdint.h>
+#include <stddef.h>
 
-#define PAGE_SIZE 4096
+typedef struct {
+    void* code_page;
+    size_t code_offset;
+    size_t code_page_size;        // ✅ 新增：实际分配大小
+    size_t requested_alloc_size;  // ✅ 新增：用户希望分配的大小
+} JitContext;
 
-void  init_memory_system();
-void* jit_alloc_page();
-void  jit_free_page(void* ptr);
-void  jit_mark_page(void* ptr, uint8_t tag);
-
-enum {
-    MEM_INIT_FAIL = 0xDEAD0001,
-    MEM_ALLOC_FAIL,
-    MEM_DOUBLE_FREE,
-    MEM_INVALID_PTR
-};
+// 内存管理接口
+void jit_init(JitContext* ctx);
+void* jit_alloc_page(JitContext* ctx);
+void jit_free(JitContext* ctx);  // 统一使用 jit_free
