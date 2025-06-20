@@ -10,6 +10,8 @@ int atomic_lock(spinlock_t* lock);
 void atomic_unlock(spinlock_t* lock);
 int atomic_compare_and_swap(int* addr, int expected, int desired);
 void atomic_pause();
+void asm_buffer_write(char* dst, char value);
+
 
 // 汇编声明
 extern int  atomic_lock_asm(int* lock);
