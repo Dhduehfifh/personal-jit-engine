@@ -1,33 +1,40 @@
-# 编译器
+# 编译器和标志设置
 CC = gcc
 CFLAGS = -Wall -O3 -fPIC
-ASFLAGS =
-LDFLAGS = -no-pie
+AS = nasm
+ASFLAGS = -f elf64
+LDFLAGS = -no-pie -pthread
 
-# 源文件
-SRCS = main.c dispatch.c memory.c jit_panic.c dispatch_table.c ops_math.asm
-OBJS = $(SRCS:.c=.o)
-OBJS := $(OBJS:.asm=.o)
-OBJS := $(OBJS:.S=.o)
+# 正确地用空格分隔源文件
+SRCS = atomic_operation.c dispatch.c dispatch_table.c main.c
 
-# 输出目标
+ASM_SRCS = atomic_operation.asm ops_math.asm
+
+# 构造目标文件列表
+C_OBJS = $(SRCS:.c=.o)
+ASM_OBJS = $(ASM_SRCS:.asm=.o)  # 保持 .o 扩展名即可
+OBJS = $(C_OBJS) $(ASM_OBJS)
+
+# 输出文件名
 TARGET = jit_engine
 
+# 默认目标
 all: $(TARGET)
 
+# 链接
 $(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $(OBJS) -o $@ $(LDFLAGS)
 
+# C 编译规则
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-%.o: %.S
-	$(CC) $(ASFLAGS) -c $< -o $@
-
+# 汇编编译规则
 %.o: %.asm
-	nasm -f elf64 $< -o $@
+	$(AS) $(ASFLAGS) $< -o $@
 
+# 清理目标
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f *.o $(TARGET)
 
 .PHONY: all clean

@@ -1,6 +1,19 @@
 #include "dispatch.h"
 #include "memory.h"
 #include <stdio.h>
+#include "atomic_operation.h"
+
+extern void atomic_lock_wrapper(void);
+extern void atomic_unlock_wrapper(void);
+extern void atomic_pause_wrapper(void);
+
+dispatch_fn_t dispatch_table[256];
+
+void init_dispatch_table() {
+    dispatch_table[0x10] = atomic_lock_wrapper;
+    dispatch_table[0x11] = atomic_unlock_wrapper;
+    dispatch_table[0x12] = atomic_pause_wrapper;
+}
 
 void jit_alloc_page_handler(void* ctx) {
     JitContext* context = (JitContext*)ctx;
