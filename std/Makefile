@@ -1,30 +1,34 @@
+# Makefile for Uranium JIT OOP test
 CC = gcc
-CFLAGS = -Wall -O3 -fPIC
-AS = nasm
-ASFLAGS = -f elf64
-LDFLAGS = -no-pie -pthread
+NASM = nasm
+CFLAGS = -Wall -O2 -fPIC
+LDFLAGS = 
+TARGET = main
 
-C_SRCS = main.c dispatch.c dispatch_table.c atomic_operation.c atomic_wrappers.c page_manager.c memory.c
-ASM_SRCS = atomic_operation.asm ops_math.asm
+SRC_C = \
+	memory.c \
+	object_alloc.c \
+	mod_alloc.c \
+	main.c
 
-C_OBJS = $(C_SRCS:.c=.o)
-ASM_OBJS = $(ASM_SRCS:.asm=_asm.o)
-OBJS = $(C_OBJS) $(ASM_OBJS)
+SRC_ASM = \
+	object_entry.asm
 
-TARGET = jit_engine
+OBJ_C = $(SRC_C:.c=.o)
+OBJ_ASM = $(SRC_ASM:.asm=.o)
+
+OBJS = $(OBJ_C) $(OBJ_ASM)
 
 all: $(TARGET)
-
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) -o $@ $(LDFLAGS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-%_asm.o: %.asm
-	$(AS) $(ASFLAGS) $< -o $@
+%.o: %.asm
+	$(NASM) -f elf64 $< -o $@
+
+$(TARGET): $(OBJS)
+	$(CC) $(LDFLAGS) -o $@ $(OBJS)
 
 clean:
-	rm -f *.o *_asm.o $(TARGET)
-
-.PHONY: all clean
+	rm -f $(TARGET) *.o

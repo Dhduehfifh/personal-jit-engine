@@ -1,6 +1,8 @@
 // memory.h
 #pragma once
 #include <stddef.h>
+#include <string.h>
+
 
 typedef struct {
     void* code_page;
