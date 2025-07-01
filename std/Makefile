@@ -1,34 +1,23 @@
-# Makefile for Uranium JIT OOP test
 CC = gcc
-NASM = nasm
 CFLAGS = -Wall -O2 -fPIC
-LDFLAGS = 
-TARGET = main
+OBJS = main.o struct_def.o struct_instance.o memory.o
 
-SRC_C = \
-	memory.c \
-	object_alloc.c \
-	mod_alloc.c \
-	main.c
+all: main
 
-SRC_ASM = \
-	object_entry.asm
+main: $(OBJS)
+	$(CC) -o main $(OBJS)
 
-OBJ_C = $(SRC_C:.c=.o)
-OBJ_ASM = $(SRC_ASM:.asm=.o)
+main.o: main.c struct_def.h struct_instance.h memory.h
+	$(CC) $(CFLAGS) -c main.c
 
-OBJS = $(OBJ_C) $(OBJ_ASM)
+struct_def.o: struct_def.c struct_def.h
+	$(CC) $(CFLAGS) -c struct_def.c
 
-all: $(TARGET)
+struct_instance.o: struct_instance.c struct_instance.h struct_def.h memory.h
+	$(CC) $(CFLAGS) -c struct_instance.c
 
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-%.o: %.asm
-	$(NASM) -f elf64 $< -o $@
-
-$(TARGET): $(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $(OBJS)
+memory.o: memory.c memory.h
+	$(CC) $(CFLAGS) -c memory.c
 
 clean:
-	rm -f $(TARGET) *.o
+	rm -f *.o main

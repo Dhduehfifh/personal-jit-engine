@@ -1,44 +1,49 @@
 // main.c
-#include "mod.h"
-#include "object.h"
-#include "memory.h"
 #include <stdio.h>
-#include <string.h>
-
-
-extern UObject* create_object_entry(JitContext* ctx, UMod* mod);  // 汇编调用入口
+#include "struct_def.h"
+#include "struct_instance.h"
+#include "memory.h"
 
 int main() {
-    printf("[TEST] Uranium OOP System Startup\n");
+    printf("[TEST] Struct Definition & Instance System Start\n");
 
+    // 1. 创建结构定义
+    StructDef* point_def = create_struct_def("Point", 0);  // 非 union
+    add_field_to_struct(point_def, "x", FIELD_INT, 0);
+    add_field_to_struct(point_def, "y", FIELD_INT, 0);
+    add_field_to_struct(point_def, "valid", FIELD_BOOL, 0);
+    finalize_struct(point_def);
+
+    printf("[INFO] Struct '%s' Total Size = %d bytes\n", point_def->name, point_def->total_size);
+
+    // 2. 创建内存上下文
     JitContext ctx;
     jit_init(&ctx);
     ctx.requested_alloc_size = 4096;
 
-    // 创建一个 MOD
-    UMod* mod = create_mod(MOD_OFFSET_STRUCTURAL);
-    add_attri_to_mod(mod, "value", ATTRI_INT, 0);
-
-    // 使用汇编入口创建对象
-    UObject* obj = create_object_entry(&ctx, mod);
-
-    if (!obj) {
-        printf("[ERROR] Failed to create object\n");
+    // 3. 创建结构实例
+    StructInstance* point = create_struct_instance(&ctx, point_def);
+    if (!point) {
+        fprintf(stderr, "[FATAL] Failed to create struct instance\n");
         return 1;
     }
 
-    printf("[OK] Object created at %p\n", obj);
-    printf("      -> Type Tag: %d\n", obj->type_tag);
-    printf("      -> Ref Count: %d\n", obj->ref_count);
-    printf("      -> Data Ptr: %p\n", obj->data);
+    // 4. 设置字段值
+    int* x_ptr = (int*)((char*)point->data + get_field_offset(point_def, "x"));
+    int* y_ptr = (int*)((char*)point->data + get_field_offset(point_def, "y"));
+    char* valid_ptr = (char*)point->data + get_field_offset(point_def, "valid");
 
-    // 模拟访问（直接将值写入）
-    int* int_field = (int*)obj->data;
-    *int_field = 114514;
-    printf("[SET] int_field = %d\n", *int_field);
+    *x_ptr = 10;
+    *y_ptr = 20;
+    *valid_ptr = 1;
 
-    release_object(obj);
-    printf("[FREE] Object released\n");
+    // 5. 输出
+    printf("[RESULT] Point(x=%d, y=%d, valid=%d)\n", *x_ptr, *y_ptr, *valid_ptr);
+
+    // 6. 清理
+    destroy_struct_instance(point);
+    destroy_struct_def(point_def);
+    jit_free(&ctx);
 
     return 0;
 }
