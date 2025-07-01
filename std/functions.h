@@ -14,7 +14,7 @@ typedef enum {
     FUNC_COMPARE_EQ,
     FUNC_GET_FIELD_INT,
     FUNC_SET_FIELD_INT,
-    // ... 可继续扩展
+    //these can never be what I want, what I need is data in ram ,read ram and do things ,ram op it self
 } FuncID;
 
 // 基础函数声明
