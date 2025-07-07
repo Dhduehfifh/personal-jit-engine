@@ -1,0 +1,137 @@
+cnm114514@ubuntu:~/桌面/JIT/personal-jit-engine/std$ cat tags | grep -E '^[a-zA-Z_][a-zA-Z0-9_]*'
+CC      Constructor/Makefile    /^CC = clang$/;"        m       line:1
+CC      Makefile        /^CC = gcc$/;"  m       line:1
+CFLAGS  Constructor/Makefile    /^CFLAGS = -target arm64-apple-macos11 -O2$/;"  m       line:2
+CFLAGS  Makefile        /^CFLAGS = -Wall -O2 -fPIC$/;"  m       line:2
+DispatchEntry   dispatch_table.h        /^} DispatchEntry;$/;"  t       line:11 typeref:struct:__anon4
+DynamicHandler  dispatch_table.h        /^typedef void (*DynamicHandler)(void* context);$/;"       t       line:5
+FieldType       struct_def.h    /^} FieldType;$/;"      t       line:9  typeref:enum:__anon8
+FuncHandler     functions.h     /^typedef int (*FuncHandler)(StructDef* def, void* data, int argc, void** argv);$/;"       t       line:6
+FuncID  functions.h     /^} FuncID;$/;" t       line:18 typeref:enum:__anon6
+JitContext      memory.h        /^} JitContext;$/;"     t       line:12 typeref:struct:__anon3
+JitPanicCode    jit_panic.h     /^} JitPanicCode;$/;"   t       line:15 typeref:enum:__anon5
+JitPanicHandler jit_panic.h     /^typedef void(*JitPanicHandler)(uint32_t code);$/;"    t line:21
+OBJS    Makefile        /^OBJS = main.o struct_def.o struct_instance.o memory.o$/;"     m line:3
+PageBuffer      page_manager.h  /^} PageBuffer;$/;"     t       line:9  typeref:struct:__anon2
+StructDef       struct_def.h    /^} StructDef;$/;"      t       line:24 typeref:struct:__anon10
+StructField     struct_def.h    /^} StructField;$/;"    t       line:16 typeref:struct:__anon9
+StructInstance  struct_instance.h       /^} StructInstance;$/;" t       line:9  typeref:struct:__anon7
+_asm_buffer_clear       memory_ops.S    /^_asm_buffer_clear:$/;"        l       line:27
+_asm_buffer_write       memory_ops.S    /^_asm_buffer_write:$/;"        l       line:5
+_create_object  Constructor/std_object.s        /^_create_object:$/;"   l       line:7
+_dispatch_call  Constructor/std_object.s        /^_dispatch_call:$/;"   l       line:23
+_jit_dispatch   dispatch.S      /^_jit_dispatch:$/;"    l       line:6
+_op_add dispatch_table.c        /^extern void _op_add(), _op_sub(), _op_mul(), _op_div();$/;"      p       line:6  file:
+_op_add ops_math.asm    /^_op_add:$/;"  l       line:14
+_op_div dispatch_table.c        /^extern void _op_add(), _op_sub(), _op_mul(), _op_div();$/;"      p       line:6  file:
+_op_div ops_math.asm    /^_op_div:$/;"  l       line:29
+_op_mul dispatch_table.c        /^extern void _op_add(), _op_sub(), _op_mul(), _op_div();$/;"      p       line:6  file:
+_op_mul ops_math.asm    /^_op_mul:$/;"  l       line:24
+_op_sub dispatch_table.c        /^extern void _op_add(), _op_sub(), _op_mul(), _op_div();$/;"      p       line:6  file:
+_op_sub ops_math.asm    /^_op_sub:$/;"  l       line:19
+add_field_to_struct     struct_def.c    /^void add_field_to_struct(StructDef* def, const char* field_name, FieldType type, int size_if_raw) {$/;"  f       line:26
+add_field_to_struct     struct_def.h    /^void add_field_to_struct(StructDef* def, const char* field_name, FieldType type, int size_if_raw);$/;"   p       line:27
+asm_buffer_clear        page_manager.h  /^void asm_buffer_clear(PageBuffer* page);$/;"  p line:13
+asm_buffer_write        atomic_operation.asm    /^asm_buffer_write:$/;" l       line:36
+asm_buffer_write        atomic_operation.h      /^void asm_buffer_write(char* dst, char value);$/;"        p       line:13
+asm_buffer_write        page_manager.h  /^void asm_buffer_write(PageBuffer* page, const uint8_t* data, size_t len);$/;"    p       line:12
+atomic_cas_asm  atomic_operation.asm    /^atomic_cas_asm:$/;"   l       line:23
+atomic_cas_asm  atomic_operation.h      /^extern int  atomic_cas_asm(int* addr, int expected, int desired);$/;"    p       line:19
+atomic_compare_and_swap atomic_operation.c      /^int atomic_compare_and_swap(int* addr, int expected, int desired) {$/;"  f       line:15
+atomic_compare_and_swap atomic_operation.h      /^int atomic_compare_and_swap(int* addr, int expected, int desired);$/;"   p       line:11
+atomic_lock     atomic_operation.c      /^int atomic_lock(spinlock_t* lock) {$/;"       f line:4
+atomic_lock     atomic_operation.h      /^int atomic_lock(spinlock_t* lock);$/;"        p line:9
+atomic_lock_asm atomic_operation.asm    /^atomic_lock_asm:$/;"  l       line:10
+atomic_lock_asm atomic_operation.h      /^extern int  atomic_lock_asm(int* lock);$/;"   p line:17
+atomic_lock_wrapper     atomic_wrappers.c       /^void atomic_lock_wrapper(void* ctx) {$/;"f       line:7
+atomic_lock_wrapper     dispatch_table.c        /^extern void atomic_lock_wrapper(void);$/;"       p       line:7  file:
+atomic_pause    atomic_operation.c      /^void atomic_pause() {$/;"     f       line:19
+atomic_pause    atomic_operation.h      /^void atomic_pause();$/;"      p       line:12
+atomic_pause_asm        atomic_operation.asm    /^atomic_pause_asm:$/;" l       line:30
+atomic_pause_asm        atomic_operation.h      /^extern void atomic_pause_asm();$/;"   p line:20
+atomic_pause_wrapper    atomic_wrappers.c       /^void atomic_pause_wrapper(void* ctx) {$/;"       f       line:19
+atomic_pause_wrapper    dispatch_table.c        /^extern void atomic_pause_wrapper(void);$/;"      p       line:9  file:
+atomic_unlock   atomic_operation.c      /^void atomic_unlock(spinlock_t* lock) {$/;"    f line:11
+atomic_unlock   atomic_operation.h      /^void atomic_unlock(spinlock_t* lock);$/;"     p line:10
+atomic_unlock_asm       atomic_operation.asm    /^atomic_unlock_asm:$/;"        l       line:18
+atomic_unlock_asm       atomic_operation.h      /^extern void atomic_unlock_asm(int* lock);$/;"    p       line:18
+atomic_unlock_wrapper   atomic_wrappers.c       /^void atomic_unlock_wrapper(void* ctx) {$/;"      f       line:13
+atomic_unlock_wrapper   dispatch_table.c        /^extern void atomic_unlock_wrapper(void);$/;"     p       line:8  file:
+buf     jit_test.py     /^buf = (ctypes.c_char * len(shellcode)).from_buffer_copy(shellcode)$/;"   v       line:8
+call_function   functions.h     /^int call_function(FuncID fid, StructDef* def, void* data, int argc, void** argv);$/;"    p       line:32
+create_object   Constructor/main.c      /^extern void* create_object(int a, int b);$/;" p line:5   file:
+create_struct_def       struct_def.c    /^StructDef* create_struct_def(const char* name, int is_union) {$/;"       f       line:15
+create_struct_def       struct_def.h    /^StructDef* create_struct_def(const char* name, int is_union);$/;"        p       line:26
+create_struct_instance  struct_instance.c       /^StructInstance* create_struct_instance(JitContext* ctx, const StructDef* def) {$/;"      f       line:7
+create_struct_instance  struct_instance.h       /^StructInstance* create_struct_instance(JitContext* ctx, const StructDef* def);$/;"       p       line:11
+destroy_page_buffer     page_manager.c  /^void destroy_page_buffer(PageBuffer* page) {$/;"fline:18
+destroy_page_buffer     page_manager.h  /^void destroy_page_buffer(PageBuffer* page);/;"  pline:18
+destroy_struct_def      struct_def.c    /^void destroy_struct_def(StructDef* def) {$/;" f line:77
+destroy_struct_def      struct_def.h    /^void destroy_struct_def(StructDef* def);$/;"  p line:30
+destroy_struct_instance struct_instance.c       /^void destroy_struct_instance(StructInstance* inst) {$/;" f       line:31
+destroy_struct_instance struct_instance.h       /^void destroy_struct_instance(StructInstance* inst);$/;"  p       line:12
+dispatch_call   Constructor/main.c      /^extern int dispatch_call(int idx);$/;"        p line:6   file:
+extern  ops_math.asm    /^extern puts$/;"       l       line:12
+finalize_struct struct_def.c    /^void finalize_struct(StructDef* def) {$/;"    f       line:57
+finalize_struct struct_def.h    /^void finalize_struct(StructDef* def);$/;"     p       line:29
+func    jit_test.py     /^func = func_type(ctypes.addressof(buf))$/;"   v       line:13
+func0   Constructor/dispatch_table.c    /^void func0() { printf(">> Function 0 executed\\n"); }$/;"        f       line:3
+func1   Constructor/dispatch_table.c    /^void func1() { printf(">> Function 1 executed\\n"); }$/;"        f       line:4
+func2   Constructor/dispatch_table.c    /^void func2() { printf(">> Function 2 executed\\n"); }$/;"        f       line:5
+func_add        functions.h     /^int func_add(StructDef* def, void* data, int argc, void** argv);$/;"     p       line:21
+func_compare_eq functions.h     /^int func_compare_eq(StructDef* def, void* data, int argc, void** argv);$/;"      p       line:26
+func_div        functions.h     /^int func_div(StructDef* def, void* data, int argc, void** argv);$/;"     p       line:24
+func_get_field_int      functions.h     /^int func_get_field_int(StructDef* def, void* data, int argc, void** argv);$/;"   p       line:28
+func_mul        functions.h     /^int func_mul(StructDef* def, void* data, int argc, void** argv);$/;"     p       line:23
+func_set_field_int      functions.h     /^int func_set_field_int(StructDef* def, void* data, int argc, void** argv);$/;"   p       line:29
+func_sub        functions.h     /^int func_sub(StructDef* def, void* data, int argc, void** argv);$/;"     p       line:22
+func_type       jit_test.py     /^func_type = ctypes.CFUNCTYPE(ctypes.c_long)$/;"       v line:11
+get_field_offset        struct_def.c    /^int get_field_offset(const StructDef* def, const char* field_name) {$/;" f       line:67
+get_field_offset        struct_def.h    /^int get_field_offset(const StructDef* def, const char* field_name);$/;"  p       line:28
+global  ops_math.asm    /^global _op_add$/;"    l       line:8
+global  ops_math.asm    /^global _op_div$/;"    l       line:11
+global  ops_math.asm    /^global _op_mul$/;"    l       line:10
+global  ops_math.asm    /^global _op_sub$/;"    l       line:9
+handler_noop    dispatch_table.c        /^static void handler_noop(void* context) {$/;" f line:13  file:
+init_dispatch_table     dispatch_table.c        /^void init_dispatch_table() {$/;"      f line:18
+init_dispatch_table     dispatch_table.h        /^void init_dispatch_table();$/;"       p line:15
+init_page_buffer        page_manager.c  /^void init_page_buffer(PageBuffer* page, size_t capacity) {$/;"   f       line:5
+init_page_buffer        page_manager.h  /^void init_page_buffer(PageBuffer* page, size_t capacity);$/;"    p       line:16
+jit_alloc_page  memory.c        /^void* jit_alloc_page(JitContext* ctx) {$/;"   f       line:11
+jit_alloc_page  memory.h        /^void* jit_alloc_page(JitContext* ctx);$/;"    p       line:16
+jit_alloc_page_handler  dispatch.c      /^void jit_alloc_page_handler(void* ctx) {$/;"  f line:6
+jit_alloc_page_handler  dispatch.h      /^void jit_alloc_page_handler(void* ctx);$/;"   p line:8
+jit_free        memory.c        /^void jit_free(JitContext* ctx) {$/;"  f       line:39
+jit_free        memory.h        /^void jit_free(JitContext* ctx);  \/\/ 统一使用 jit_free/;"       p       line:17
+jit_free_page_handler   dispatch.c      /^void jit_free_page_handler(void* ctx) {$/;"   f line:12
+jit_free_page_handler   dispatch.h      /^void jit_free_page_handler(void* ctx);$/;"    p line:9
+jit_init        memory.c        /^void jit_init(JitContext* ctx) {$/;"  f       line:7
+jit_init        memory.h        /^void jit_init(JitContext* ctx);$/;"   p       line:15
+jit_panic       jit_panic.c     /^void jit_panic(uint32_t code) {$/;"   f       line:13
+jit_panic       jit_panic.h     /^void jit_panic(uint32_t code);$/;"    p       line:18
+jit_program     dispatch.c      /^void jit_program(JitContext* ctx) {$/;"       f       line:18
+jit_program     dispatch.h      /^void jit_program(JitContext* ctx);$/;"        p       line:7
+main    Constructor/main.c      /^int main() {$/;"      f       line:8
+main    main.c  /^int main() {$/;"      f       line:7
+msg_add ops_math.asm    /^msg_add db "[ASM] Add handler called", 10, 0$/;"      d       line:2
+msg_div ops_math.asm    /^msg_div db "[ASM] Div handler called", 10, 0$/;"      d       line:5
+msg_mul ops_math.asm    /^msg_mul db "[ASM] Mul handler called", 10, 0$/;"      d       line:4
+msg_sub ops_math.asm    /^msg_sub db "[ASM] Sub handler called", 10, 0$/;"      d       line:3
+register_handler        dispatch_table.c        /^void register_handler(uint8_t opcode, DynamicHandler handler, void* context, uint8_t is_mutable) {$/;"   f       line:35
+register_handler        dispatch_table.h        /^void register_handler(uint8_t opcode, DynamicHandler handler, void* context, uint8_t is_mutable);$/;"    p       line:16
+safe_strdup     struct_def.c    /^static char* safe_strdup(const char* s) {$/;" f       line:7     file:
+safe_write      page_manager.c  /^void safe_write(PageBuffer* page, const uint8_t* data, size_t len) {$/;" f       line:13
+safe_write      page_manager.h  /^void safe_write(PageBuffer* page, const uint8_t* data, size_t len);$/;"  p       line:17
+section atomic_operation.asm    /^section .text$/;"     l       line:2
+section ops_math.asm    /^section .data$/;"     l       line:1
+section ops_math.asm    /^section .text$/;"     l       line:7
+set_jit_panic_handler   jit_panic.h     /^void set_jit_panic_handler(JitPanicHandler handler);/;"  p       line:22
+shellcode       jit_test.py     /^shellcode = b"\\x48\\xC7\\xC0\\x2A\\x00\\x00\\x00\\xC3"$/;"      v       line:5
+spinlock_t      atomic_operation.h      /^} spinlock_t;$/;"     t       line:7  typeref:struct:__anon1
+trigger_handler dispatch_table.c        /^void trigger_handler(uint8_t opcode) {$/;"    f line:41
+trigger_handler dispatch_table.h        /^void trigger_handler(uint8_t opcode);$/;"     p line:17
+update_handler  dispatch_table.c        /^void update_handler(uint8_t opcode, DynamicHandler new_handler) {$/;"    f       line:50
+update_handler  dispatch_table.h        /^void update_handler(uint8_t opcode, DynamicHandler new_handler);$/;"     p       line:18
+update_handler_context  dispatch_table.c        /^void update_handler_context(uint8_t opcode, void* new_context) {$/;"     f       line:58
+update_handler_context  dispatch_table.h        /^void update_handler_context(uint8_t opcode, void* new_context);$/;"      p       line:19
+cnm114514@ubuntu:~/桌面/JIT/personal-jit-engine/std$ 

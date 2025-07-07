@@ -1,0 +1,671 @@
+
+
+===== FUNCTION: _asm_buffer_clear =====
+
+--- From file: ./memory_ops.S ---
+_asm_buffer_clear:
+    // x0: PageBuffer*
+    ldr x1, [x0]            // buffer指针
+    ldr x2, [x0, #8]        // capacity
+    mov x3, #0
+3:                          // 清零循环
+    strb wzr, [x1, x3]
+    add x3, x3, #1
+    cmp x3, x2
+    b.lt 3b
+    ret
+
+
+===== FUNCTION: _asm_buffer_write =====
+
+--- From file: ./memory_ops.S ---
+_asm_buffer_write:
+    // x0: PageBuffer*, x1: data*, x2: len
+    ldr x3, [x0, #16]       // 加载lock地址
+    mov w4, #1
+1:
+    ldaxr w5, [x3]          // 原子加载lock
+    cbnz w5, 1b             // 等待解锁
+    stxr w6, w4, [x3]       // 尝试加锁
+    cbnz w6, 1b             // 失败则重试
+
+    ldr x7, [x0]            // buffer指针
+    mov x8, #0
+2:                          // 循环写入
+    ldrb w9, [x1, x8]
+    strb w9, [x7, x8]
+    add x8, x8, #1
+    cmp x8, x2
+    b.lt 2b
+
+    stlr wzr, [x3]          // 释放锁
+    ret
+
+
+
+===== FUNCTION: _jit_dispatch =====
+
+--- From file: ./dispatch.S ---
+_jit_dispatch:
+    // x0=opcode, x1=JitContext*
+    adrp x16, _dispatch_table@PAGE
+    add x16, x16, _dispatch_table@PAGEOFF
+    ldr x17, [x16, x0, lsl #3]
+    mov x0, x1        // 将上下文指针作为第一个参数
+    br x17
+
+
+===== FUNCTION: _op_add =====
+
+--- From file: ./ops_math.asm ---
+_op_add:
+    mov rdi, msg_add
+    call puts
+    ret
+
+
+
+===== FUNCTION: _op_div =====
+
+--- From file: ./ops_math.asm ---
+global _op_div
+extern puts
+
+
+--- From file: ./ops_math.asm ---
+_op_div:
+    mov rdi, msg_div
+    call puts
+    ret
+
+
+===== FUNCTION: _op_mul =====
+
+--- From file: ./ops_math.asm ---
+_op_mul:
+    mov rdi, msg_mul
+    call puts
+    ret
+
+
+
+===== FUNCTION: _op_sub =====
+
+--- From file: ./ops_math.asm ---
+_op_sub:
+    mov rdi, msg_sub
+    call puts
+    ret
+
+
+
+===== FUNCTION: add_field_to_struct =====
+
+--- From file: ./struct_def.c ---
+void add_field_to_struct(StructDef* def, const char* field_name, FieldType type, int size_if_raw) {
+    if (!def || !field_name) return;
+    int size = 0;
+    switch (type) {
+        case FIELD_INT: size = 4; break;
+        case FIELD_BOOL: size = 1; break;
+        case FIELD_PTR: size = 8; break;
+        case FIELD_RAW: size = size_if_raw; break;
+        default: return;
+    }
+
+    StructField field;
+    field.name = safe_strdup(field_name);
+    field.type = type;
+    field.size = size;
+    if (def->is_union) {
+        field.offset = 0;
+    } else {
+        int last_offset = 0;
+        if (def->field_count > 0) {
+            StructField* last = &def->fields[def->field_count - 1];
+            last_offset = last->offset + last->size;
+        }
+        field.offset = last_offset;
+    }
+
+    def->fields = realloc(def->fields, sizeof(StructField) * (def->field_count + 1));
+    def->fields[def->field_count] = field;
+    def->field_count++;
+}
+
+
+===== FUNCTION: asm_buffer_write =====
+
+--- From file: ./atomic_operation.asm ---
+    global asm_buffer_write
+
+; int atomic_lock_asm(int* lock)
+
+--- From file: ./atomic_operation.asm ---
+asm_buffer_write:
+    mov [rdi], sil   ; 把第二个参数写入第一个参数指向的地址
+    ret
+
+
+===== FUNCTION: atomic_cas_asm =====
+
+--- From file: ./atomic_operation.asm ---
+atomic_cas_asm:
+    mov eax, esi
+    lock cmpxchg dword [rdi], edx
+    sete al
+    ret
+
+; void atomic_pause_asm()
+
+
+===== FUNCTION: atomic_compare_and_swap =====
+
+--- From file: ./atomic_operation.c ---
+int atomic_compare_and_swap(int* addr, int expected, int desired) {
+    return atomic_cas_asm(addr, expected, desired);
+}
+
+
+===== FUNCTION: atomic_lock =====
+
+--- From file: ./atomic_operation.c ---
+int atomic_lock(spinlock_t* lock) {
+    while (!atomic_lock_asm(&lock->value)) {
+        atomic_pause_asm();
+    }
+    return 1;
+}
+
+
+===== FUNCTION: atomic_lock_asm =====
+
+--- From file: ./atomic_operation.asm ---
+atomic_lock_asm:
+    mov eax, 0
+    mov ecx, 1
+    lock cmpxchg dword [rdi], ecx
+    sete al
+    ret
+
+; void atomic_unlock_asm(int* lock)
+
+
+===== FUNCTION: atomic_lock_wrapper =====
+
+--- From file: ./atomic_wrappers.c ---
+void atomic_lock_wrapper(void* ctx) {
+    atomic_lock(&global_lock);
+    global_lock_value = global_lock.value;
+    printf("[dispatch] locked\n");
+}
+
+
+===== FUNCTION: atomic_pause =====
+
+--- From file: ./atomic_operation.c ---
+void atomic_pause() {
+    atomic_pause_asm();
+}
+
+
+===== FUNCTION: atomic_pause_asm =====
+
+--- From file: ./atomic_operation.asm ---
+atomic_pause_asm:
+    pause
+    ret
+
+
+
+
+
+===== FUNCTION: atomic_pause_wrapper =====
+
+--- From file: ./atomic_wrappers.c ---
+void atomic_pause_wrapper(void* ctx) {
+    atomic_pause();
+    printf("[dispatch] pause done\n");
+}
+
+
+===== FUNCTION: atomic_unlock =====
+
+--- From file: ./atomic_operation.c ---
+void atomic_unlock(spinlock_t* lock) {
+    atomic_unlock_asm(&lock->value);
+}
+
+
+===== FUNCTION: atomic_unlock_asm =====
+
+--- From file: ./atomic_operation.asm ---
+atomic_unlock_asm:
+    mov dword [rdi], 0
+    ret
+
+; int atomic_cas_asm(int* addr, int expected, int desired)
+
+
+===== FUNCTION: atomic_unlock_wrapper =====
+
+--- From file: ./atomic_wrappers.c ---
+void atomic_unlock_wrapper(void* ctx) {
+    atomic_unlock(&global_lock);
+    global_lock_value = global_lock.value;
+    printf("[dispatch] unlocked\n");
+}
+
+
+===== FUNCTION: create_struct_def =====
+
+--- From file: ./struct_def.c ---
+StructDef* create_struct_def(const char* name, int is_union) {
+    StructDef* def = (StructDef*)malloc(sizeof(StructDef));
+    if (!def) return NULL;
+    def->name = safe_strdup(name);
+    def->is_union = is_union;
+    def->field_count = 0;
+    def->total_size = 0;
+    def->fields = NULL;
+    return def;
+}
+
+
+===== FUNCTION: create_struct_instance =====
+
+--- From file: ./struct_instance.c ---
+StructInstance* create_struct_instance(JitContext* ctx, const StructDef* def) {
+    if (!ctx || !def) return NULL;
+    if (!ctx->code_page) {
+        if (!jit_alloc_page(ctx)) {
+            fprintf(stderr, "[FATAL] Failed to alloc page in struct_instance\n");
+            return NULL;
+        }
+    }
+
+    if (ctx->code_offset + def->total_size > ctx->code_page_size) {
+        fprintf(stderr, "[ERROR] Page memory full\n");
+        return NULL;
+    }
+
+    StructInstance* inst = (StructInstance*)malloc(sizeof(StructInstance));
+    if (!inst) return NULL;
+
+    inst->data = (void*)((char*)ctx->code_page + ctx->code_offset);
+    inst->def = def;
+    ctx->code_offset += def->total_size;
+    memset(inst->data, 0, def->total_size);
+    return inst;
+}
+
+
+===== FUNCTION: destroy_page_buffer =====
+
+--- From file: ./page_manager.c ---
+void destroy_page_buffer(PageBuffer* page) {
+    if (page && page->buffer) {
+        munmap(page->buffer, page->capacity);
+        page->buffer = NULL;
+    }
+}
+
+
+===== FUNCTION: destroy_struct_def =====
+
+--- From file: ./struct_def.c ---
+void destroy_struct_def(StructDef* def) {
+    if (!def) return;
+    for (int i = 0; i < def->field_count; ++i) {
+        free(def->fields[i].name);
+    }
+    free(def->fields);
+    free(def->name);
+    free(def);
+}
+
+
+===== FUNCTION: destroy_struct_instance =====
+
+--- From file: ./struct_instance.c ---
+void destroy_struct_instance(StructInstance* inst) {
+    if (!inst) return;
+    free(inst);
+}
+
+
+===== FUNCTION: finalize_struct =====
+
+--- From file: ./struct_def.c ---
+void finalize_struct(StructDef* def) {
+    if (!def) return;
+    int max_end = 0;
+    for (int i = 0; i < def->field_count; ++i) {
+        int end = def->fields[i].offset + def->fields[i].size;
+        if (end > max_end) max_end = end;
+    }
+    def->total_size = max_end;
+}
+
+
+===== FUNCTION: func0 =====
+
+--- From file: ./Constructor/dispatch_table.c ---
+void func0() { printf(">> Function 0 executed\n"); }
+
+
+===== FUNCTION: func1 =====
+
+--- From file: ./Constructor/dispatch_table.c ---
+void func1() { printf(">> Function 1 executed\n"); }
+
+
+===== FUNCTION: func2 =====
+
+--- From file: ./Constructor/dispatch_table.c ---
+void func2() { printf(">> Function 2 executed\n"); }
+
+
+===== FUNCTION: get_field_offset =====
+
+--- From file: ./struct_def.c ---
+int get_field_offset(const StructDef* def, const char* field_name) {
+    if (!def || !field_name) return -1;
+    for (int i = 0; i < def->field_count; ++i) {
+        if (strcmp(def->fields[i].name, field_name) == 0) {
+            return def->fields[i].offset;
+        }
+    }
+    return -1;
+}
+
+
+===== FUNCTION: handler_noop =====
+
+--- From file: ./dispatch_table.c ---
+static void handler_noop(void* context) {
+    (void)context;
+    printf("[DISPATCH] NOOP handler triggered\n");
+}
+
+
+===== FUNCTION: init_dispatch_table =====
+
+--- From file: ./dispatch_table.c ---
+void init_dispatch_table() {
+    for (int i = 0; i < MAX_OPCODES; ++i) {
+        dispatch_table[i].handler = handler_noop;
+        dispatch_table[i].context = NULL;
+        dispatch_table[i].is_mutable = 1;
+    }
+
+    dispatch_table[0x04].handler = (DynamicHandler)_op_add;
+    dispatch_table[0x05].handler = (DynamicHandler)_op_sub;
+    dispatch_table[0x06].handler = (DynamicHandler)_op_mul;
+    dispatch_table[0x07].handler = (DynamicHandler)_op_div;
+
+    dispatch_table[0x10].handler = (DynamicHandler)atomic_lock_wrapper;
+    dispatch_table[0x11].handler = (DynamicHandler)atomic_unlock_wrapper;
+    dispatch_table[0x12].handler = (DynamicHandler)atomic_pause_wrapper;
+}
+
+
+===== FUNCTION: init_page_buffer =====
+
+--- From file: ./page_manager.c ---
+void init_page_buffer(PageBuffer* page, size_t capacity) {
+    page->buffer = mmap(NULL, capacity, 
+                       PROT_READ | PROT_WRITE,
+                       MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    page->capacity = capacity;
+    page->lock = 0;
+}
+
+
+===== FUNCTION: jit_alloc_page =====
+
+--- From file: ./memory.c ---
+void* jit_alloc_page(JitContext* ctx) {
+    if (!ctx) {
+        fprintf(stderr, "Error: NULL context\n");
+        return NULL;
+    }
+
+    if (ctx->code_page) {
+        jit_free(ctx);
+    }
+
+    size_t size = ctx->requested_alloc_size;
+    if (size == 0) size = 4096;  // 默认页大小
+    
+    void* page = mmap(NULL, size,
+                      PROT_READ | PROT_WRITE | PROT_EXEC,
+                      MAP_PRIVATE | MAP_ANONYMOUS,
+                      -1, 0);
+    if (page == MAP_FAILED) {
+        perror("jit_alloc_page mmap failed");
+        return NULL;
+    }
+
+    ctx->code_page = page;
+    ctx->code_offset = 0;
+    ctx->code_page_size = size;  // 保存实际大小
+    return page;
+}
+
+
+===== FUNCTION: jit_alloc_page_handler =====
+
+--- From file: ./dispatch.c ---
+void jit_alloc_page_handler(void* ctx) {
+    JitContext* context = (JitContext*)ctx;
+    void* result = jit_alloc_page(context);
+    printf("[JIT] alloc_page result: %p\n", result);
+}
+
+
+===== FUNCTION: jit_free =====
+
+--- From file: ./memory.c ---
+void jit_free(JitContext* ctx) {
+    if (ctx && ctx->code_page) {
+        printf("[JIT] Attempting to free %zu bytes at %p\n", ctx->code_page_size, ctx->code_page); // 增加日志输出
+        // ✅ 修正：使用 JitContext 中保存的实际分配大小来释放内存
+        if (munmap(ctx->code_page, ctx->code_page_size) == -1) {
+            perror("jit_free munmap failed");
+        } else {
+            printf("[JIT] free_page done\n");
+        }
+        ctx->code_page = NULL;
+        ctx->code_offset = 0;
+        ctx->code_page_size = 0;        // 释放后清零
+        ctx->requested_alloc_size = 0;  // 释放后清零
+    } else {
+        printf("[JIT] No page to free or context is NULL.\n");
+    }
+}
+
+
+===== FUNCTION: jit_free_page_handler =====
+
+--- From file: ./dispatch.c ---
+void jit_free_page_handler(void* ctx) {
+    JitContext* context = (JitContext*)ctx;
+    jit_free(context);
+    printf("[JIT] free_page done\n");
+}
+
+
+===== FUNCTION: jit_init =====
+
+--- From file: ./memory.c ---
+void jit_init(JitContext* ctx) {
+    memset(ctx, 0, sizeof(JitContext));
+}
+
+
+===== FUNCTION: jit_panic =====
+
+--- From file: ./jit_panic.c ---
+void jit_panic(uint32_t code) {
+    const char* msg;
+    switch(code) {
+        case 0xDEAD0001: msg = "内存初始化失败"; break;
+        case 0xDEAD0002: msg = "内存耗尽"; break;
+        case 0xDEAD0003: msg = "非法指针 (必须为页对齐地址)"; break;
+        default: msg = "未知错误";
+    }
+    fprintf(stderr, "❌ JIT引擎崩溃: %s (代码:0x%X)\n", msg, code);
+    fprintf(stderr, "  建议检查: 1.指针是否越界 2.内存是否已初始化\n");
+    abort();
+}
+
+
+===== FUNCTION: jit_program =====
+
+--- From file: ./dispatch.c ---
+void jit_program(JitContext* ctx) {
+    if (!ctx) {
+        fprintf(stderr, "Error: NULL context\n");
+        return;
+    }
+
+    if (!ctx->code_page && !jit_alloc_page(ctx)) {
+        fprintf(stderr, "Failed to allocate memory\n");
+        return;
+    }
+
+    printf("Memory allocated at: %p\n", ctx->code_page);
+}
+
+
+===== FUNCTION: main =====
+
+--- From file: ./main.c ---
+int main() {
+    printf("[TEST] Struct Definition & Instance System Start\n");
+
+    // 1. 创建结构定义
+    StructDef* point_def = create_struct_def("Point", 0);  // 非 union
+    add_field_to_struct(point_def, "x", FIELD_INT, 0);
+    add_field_to_struct(point_def, "y", FIELD_INT, 0);
+    add_field_to_struct(point_def, "valid", FIELD_BOOL, 0);
+    finalize_struct(point_def);
+
+    printf("[INFO] Struct '%s' Total Size = %d bytes\n", point_def->name, point_def->total_size);
+
+    // 2. 创建内存上下文
+    JitContext ctx;
+    jit_init(&ctx);
+    ctx.requested_alloc_size = 4096;
+
+    // 3. 创建结构实例
+    StructInstance* point = create_struct_instance(&ctx, point_def);
+    if (!point) {
+        fprintf(stderr, "[FATAL] Failed to create struct instance\n");
+        return 1;
+    }
+
+    // 4. 设置字段值
+    int* x_ptr = (int*)((char*)point->data + get_field_offset(point_def, "x"));
+    int* y_ptr = (int*)((char*)point->data + get_field_offset(point_def, "y"));
+    char* valid_ptr = (char*)point->data + get_field_offset(point_def, "valid");
+
+    *x_ptr = 10;
+    *y_ptr = 20;
+    *valid_ptr = 1;
+
+    // 5. 输出
+    printf("[RESULT] Point(x=%d, y=%d, valid=%d)\n", *x_ptr, *y_ptr, *valid_ptr);
+
+    // 6. 清理
+    destroy_struct_instance(point);
+    destroy_struct_def(point_def);
+    jit_free(&ctx);
+
+    return 0;
+}
+
+--- From file: ./Constructor/main.c ---
+int main() {
+    void* obj = create_object(42, 99);
+    int* data = (int*)obj;
+    printf("Object created: a=%d, b=%d\n", data[0], data[1]);
+
+    printf("Calling dispatch function 0:\n");
+    dispatch_call(0);
+
+    printf("Calling dispatch function 2:\n");
+    dispatch_call(2);
+
+    free(obj);
+    return 0;
+}
+
+
+===== FUNCTION: register_handler =====
+
+--- From file: ./dispatch_table.c ---
+void register_handler(uint8_t opcode, DynamicHandler handler, void* context, uint8_t is_mutable) {
+    dispatch_table[opcode].handler = handler;
+    dispatch_table[opcode].context = context;
+    dispatch_table[opcode].is_mutable = is_mutable;
+}
+
+
+===== FUNCTION: safe_strdup =====
+
+--- From file: ./struct_def.c ---
+static char* safe_strdup(const char* s) {
+    if (!s) return NULL;
+    size_t len = strlen(s);
+    char* copy = (char*)malloc(len + 1);
+    if (copy) memcpy(copy, s, len + 1);
+    return copy;
+}
+
+
+===== FUNCTION: safe_write =====
+
+--- From file: ./page_manager.c ---
+void safe_write(PageBuffer* page, const uint8_t* data, size_t len) {
+    if (!page || !data || len == 0 || len > page->capacity) return;
+    asm_buffer_write(page, data, len);
+}
+
+
+===== FUNCTION: trigger_handler =====
+
+--- From file: ./dispatch_table.c ---
+void trigger_handler(uint8_t opcode) {
+    if (opcode >= MAX_OPCODES) {
+        printf("[ERROR] Invalid opcode 0x%02X\n", opcode);
+        return;
+    }
+    DispatchEntry* entry = &dispatch_table[opcode];
+    entry->handler(entry->context);
+}
+
+
+===== FUNCTION: update_handler =====
+
+--- From file: ./dispatch_table.c ---
+void update_handler(uint8_t opcode, DynamicHandler new_handler) {
+    if (opcode >= MAX_OPCODES || !dispatch_table[opcode].is_mutable) {
+        printf("[WARN] Opcode 0x%02X is not mutable or invalid\n", opcode);
+        return;
+    }
+    dispatch_table[opcode].handler = new_handler;
+}
+
+
+===== FUNCTION: update_handler_context =====
+
+--- From file: ./dispatch_table.c ---
+void update_handler_context(uint8_t opcode, void* new_context) {
+    if (opcode >= MAX_OPCODES || !dispatch_table[opcode].is_mutable) {
+        printf("[WARN] Cannot update context for opcode 0x%02X\n", opcode);
+        return;
+    }
+    dispatch_table[opcode].context = new_context;
+}

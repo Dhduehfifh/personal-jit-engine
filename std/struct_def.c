@@ -4,7 +4,7 @@
 #include <string.h>
 #include <stdio.h>
 
-static char* safe_strdup(const char* s) {
+char* safe_strdup(const char* s) {
     if (!s) return NULL;
     size_t len = strlen(s);
     char* copy = (char*)malloc(len + 1);

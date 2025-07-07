@@ -1,23 +1,25 @@
 CC = gcc
-CFLAGS = -Wall -O2 -fPIC
-OBJS = main.o struct_def.o struct_instance.o memory.o
+CFLAGS = -Wall -O2 -g -fPIC
 
-all: main
+SRCS = \
+    main.c \
+    function_def.c \
+    struct_def.c \
+    struct_instance.c \
+    memory.c \
+    jit_panic.c
 
-main: $(OBJS)
-	$(CC) -o main $(OBJS)
+OBJS = $(SRCS:.c=.o)
 
-main.o: main.c struct_def.h struct_instance.h memory.h
-	$(CC) $(CFLAGS) -c main.c
+TARGET = test_main
 
-struct_def.o: struct_def.c struct_def.h
-	$(CC) $(CFLAGS) -c struct_def.c
+all: $(TARGET)
 
-struct_instance.o: struct_instance.c struct_instance.h struct_def.h memory.h
-	$(CC) $(CFLAGS) -c struct_instance.c
+$(TARGET): $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $^
 
-memory.o: memory.c memory.h
-	$(CC) $(CFLAGS) -c memory.c
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f *.o main
+	rm -f $(OBJS) $(TARGET)

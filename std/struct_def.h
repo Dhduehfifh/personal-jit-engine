@@ -5,7 +5,8 @@ typedef enum {
     FIELD_INT,
     FIELD_BOOL,
     FIELD_PTR,
-    FIELD_RAW  // 固定大小字节数组
+    FIELD_RAW,  // 固定大小字节数组
+    FIELD_FUNCTION
 } FieldType;
 
 typedef struct {
@@ -13,6 +14,7 @@ typedef struct {
     FieldType type;
     int offset;
     int size;  // 仅用于 RAW 类型；其余类型固定
+    void* default_handler;
 } StructField;
 
 typedef struct {
