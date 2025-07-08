@@ -1,0 +1,9 @@
+asm_dispatch_export
+example_event
+handler_custom
+handler_malloc
+handler_write
+init_dispatch_table
+main
+register_handler
+resolve_handler
