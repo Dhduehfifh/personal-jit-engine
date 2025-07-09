@@ -2,6 +2,7 @@ section .text
     ;global symbles
     
     global atomic_lock_asm
+    global atomic_unlock_asm
     global atomic_cas_asm
     global atomic_pause_asm
     global asm_buffer_write
@@ -33,3 +34,10 @@ atomic_cas_asm:
 atomic_pause_asm:
     pause
     ret
+
+
+asm_buffer_write:
+    ret
+    ;看来我这个需要内嵌一个跨平台汇编模拟器了，而且还得是那种全原子操作的那种.....
+    ;I didnt extern this symble in builtin_func.c/.h, it not gonna be ues this time
+    
