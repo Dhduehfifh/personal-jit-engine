@@ -98,10 +98,30 @@ void atomic_compare_and_swap_wrapper(void* ctx) {
 }
 
 void jit_panic_wrapper(void* ctx) {
-    if (!ctx) return;
+    if (!ctx) {
+        jit_panic(0xDEAD0003);  // 非法指针
+        return;
+    }
+
+    // 简单死区检查：确保指针是8字节对齐（示例，按需调整）
+    if ((uintptr_t)ctx & 0x7) {
+        jit_panic(0xDEAD0003);
+        return;
+    }
+
     uint32_t* code_ptr = (uint32_t*)ctx;
     jit_panic(*code_ptr);
 }
+
+void jit_panic_cleanup_wrapper(void* ctx) {
+    if (!ctx) {
+        return;
+    }
+    jit_panic_cleanup();
+    printf("========END========");
+}
+
+
 
 // --- 初始化绑定 ---
 void noop_wrapper(void* ctx) {
@@ -146,5 +166,18 @@ void init_builtin_dispatch() {
 
     register_handler(0x07, atomic_compare_and_swap_wrapper);
 
-    register_handler(0x1F, jit_panic_wrapper);
+    register_handler(0x1E, jit_panic_wrapper);
+    register_handler(0x1F, jit_panic_cleanup_wrapper);
+
+    register_handler(0x30, logic_if_zero_wrapper);
+    register_handler(0x31, logic_if_not_zero_wrapper);
+
+    // opcode 0x40~0x45 为 math 运算
+    register_handler(0x40, math_add_wrapper);
+    register_handler(0x41, math_sub_wrapper);
+    register_handler(0x42, math_mul_wrapper);
+    register_handler(0x43, math_div_wrapper);
+    register_handler(0x44, math_sqrt_wrapper);
+    register_handler(0x45, math_pow_wrapper);
+
 }

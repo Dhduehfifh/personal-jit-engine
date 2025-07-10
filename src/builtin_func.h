@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
 //========空实现，专门为了那种return NULL的场景设计 ========
 void noop_wrapper(void* ctx);
@@ -91,15 +92,40 @@ extern void atomic_pause_asm(); //dont use this right now
 // ======== Panic 处理机制 ========
 typedef enum {
     JIT_PANIC_NONE = 0,
-    JIT_PANIC_MEM_INIT_FAIL,
-    JIT_PANIC_OUT_OF_MEMORY,
-    JIT_PANIC_INVALID_FREE,
-    JIT_PANIC_DOUBLE_FREE,
-    JIT_PANIC_ILLEGAL_OPCODE,
-    JIT_PANIC_STACK_OVERFLOW,
-    JIT_PANIC_GC_CORRUPTION
+    JIT_PANIC_MEM_INIT_FAIL = 0xDEAD0001,
+    JIT_PANIC_OUT_OF_MEMORY = 0xDEAD0002,
+    JIT_PANIC_INVALID_FREE = 0xDEAD0003,
+    JIT_PANIC_DOUBLE_FREE = 0xDEAD0004,
+    JIT_PANIC_ILLEGAL_OPCODE = 0xDEAD0005,
+    JIT_PANIC_STACK_OVERFLOW = 0xDEAD0006,
+    JIT_PANIC_GC_CORRUPTION = 0xDEAD0007
 } JitPanicCode;
+typedef struct {
+    uint32_t code;
+    const char* msg;
+    const char* file;
+    int line;
+    time_t timestamp;
+} JitPanicRecord;
 
 void jit_panic(uint32_t code);
 typedef void(*JitPanicHandeler)(uint32_t code);
 void set_jit_panic_handler(JitPanicHandeler handler);
+void jit_panic_cleanup();
+
+extern JitPanicRecord* panic_records;
+extern size_t panic_count;
+extern int panic_enabled;
+
+//========logic control ========
+
+extern void* logic_if_zero_wrapper(void* ctx);
+extern void* logic_if_not_zero_wrapper(void* ctx);
+
+//========math functions ========
+void* math_add_wrapper(void* ctx);
+void* math_sub_wrapper(void* ctx);
+void* math_mul_wrapper(void* ctx);
+void* math_div_wrapper(void* ctx);
+void* math_sqrt_wrapper(void* ctx);
+void* math_pow_wrapper(void* ctx);

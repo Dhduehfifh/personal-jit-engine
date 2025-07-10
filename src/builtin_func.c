@@ -3,6 +3,8 @@
 #include <sys/mman.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <math.h>
 
 
 //======== NULL ========
@@ -214,19 +216,120 @@ void atomic_pause() {
 }
 
 //================= Panic ===================
+//nece things
+JitPanicRecord* panic_records = NULL;
+size_t panic_count = 0;
+int panic_enabled = 1;
 
 void set_jit_panic_handler(JitPanicHandeler handler) {
     return NULL;
 }
 
 void jit_panic(uint32_t code) {
+    if (!panic_enabled) return;  // 全局开关检查
+
     const char* msg;
     switch (code) {
         case 0xDEAD0001: msg = "[PANIC] 内存初始化失败"; break;
         case 0xDEAD0002: msg = "[PANIC] 内存耗尽"; break;
         case 0xDEAD0003: msg = "[PANIC] 非法指针释放"; break;
+        case 0xDEAD0004: msg = "[PANIC] 双重释放"; break;       // 新增
+        case 0xDEAD0005: msg = "[PANIC] 非法操作码"; break;     // 新增
+        case 0xDEADBEEF: msg = "[PANIC] 自定义错误"; break;     // 你的空槽位
         default: msg = "[PANIC] 未知错误"; break;
     }
+
+    // 记录错误信息
+    JitPanicRecord record = {
+        .code = code,
+        .msg = msg,
+        .file = NULL,  // 可通过宏补充
+        .line = 0,
+        .timestamp = time(NULL)
+    };
+
+    // 动态扩容记录数组
+    JitPanicRecord* new_records = realloc(panic_records, (panic_count + 1) * sizeof(JitPanicRecord));
+    if (new_records) {
+        panic_records = new_records;
+        panic_records[panic_count++] = record;
+    }
+
+    // 输出到stderr
     fprintf(stderr, "%s (code=0x%X)\n", msg, code);
-    abort();
+    abort();  // 保持原有行为
+}
+
+void jit_panic_cleanup() {
+    if (panic_count > 0) {
+        fprintf(stderr, "\n=== JIT错误报告 ===\n");
+        for (size_t i = 0; i < panic_count; i++) {
+            char time_str[20];
+            strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", localtime(&panic_records[i].timestamp));
+            fprintf(stderr, "[%s] %s (0x%X)\n", time_str, panic_records[i].msg, panic_records[i].code);
+        }
+    }
+    free(panic_records);
+    panic_records = NULL;
+    panic_count = 0;
+}
+
+// ======== Math ========
+
+// 假设传入 ctx 是一个包含两个整数的 int[2] 指针
+static inline int* get_args(void* ctx) {
+    return (int*)ctx;
+}
+
+// === 基本数学函数 ===
+// 加法：result = a + b
+void* math_add_wrapper(void* ctx) {
+    float* input = (float*)ctx;
+    static float result;
+    result = input[0] + input[1];
+    return &result;
+}
+
+// 减法：result = a - b
+void* math_sub_wrapper(void* ctx) {
+    float* input = (float*)ctx;
+    static float result;
+    result = input[0] - input[1];
+    return &result;
+}
+
+// 乘法：result = a * b
+void* math_mul_wrapper(void* ctx) {
+    float* input = (float*)ctx;
+    static float result;
+    result = input[0] * input[1];
+    return &result;
+}
+
+// 除法：result = a / b（注意除以 0）
+void* math_div_wrapper(void* ctx) {
+    float* input = (float*)ctx;
+    static float result;
+    if (input[1] == 0.0f) {
+        result = 0.0f; // 或者触发 panic
+    } else {
+        result = input[0] / input[1];
+    }
+    return &result;
+}
+
+// 平方根：result = sqrt(a)
+void* math_sqrt_wrapper(void* ctx) {
+    float* input = (float*)ctx;
+    static float result;
+    result = sqrt(input[0]);
+    return &result;
+}
+
+// 幂运算：result = pow(a, b)
+void* math_pow_wrapper(void* ctx) {
+    float* input = (float*)ctx;
+    static float result;
+    result = pow(input[0], input[1]);
+    return &result;
 }
