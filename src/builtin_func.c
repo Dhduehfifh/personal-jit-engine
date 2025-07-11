@@ -6,9 +6,8 @@
 #include <stdint.h>
 #include <math.h>
 
-
 //======== NULL ========
-
+ 
 
 //================= Memory ===================
 
@@ -143,14 +142,23 @@ StructInstance* create_struct_instance(JitContext* ctx, const StructDef* def) {
     StructInstance* inst = malloc(sizeof(StructInstance));
     inst->def = def;
     inst->data = (char*)ctx->code_page + ctx->code_offset;
+    inst->field_ptrs = malloc(sizeof(void*) * def->field_count);
     ctx->code_offset += def->total_size;
     memset(inst->data, 0, def->total_size);
+
+    for (int i = 0; i < def->field_count; ++i) {
+        inst->field_ptrs[i] = inst->data + def->fields[i].offset;
+    }
+
     return inst;
 }
 
 // 销毁结构体实例（不释放内部数据页）
 void destroy_struct_instance(StructInstance* inst) {
-    if (inst) free(inst);
+    if (inst) {
+        free(inst->field_ptrs);
+        free(inst);
+    }
 }
 
 //================= Function Field ===================
@@ -180,8 +188,12 @@ void update_function_handler(StructField* field, FunctionHandler fn) {
 void call_function_field(void* instance_data, StructField* field) {
     if (!field || field->type != FIELD_FUNCTION) return;
     FunctionHandler fn = *(FunctionHandler*)((char*)instance_data + field->offset);
-    if (fn) fn(instance_data);
-    else if (field->default_handler) ((FunctionHandler)(field->default_handler))(instance_data);
+    if (field->default_handler) {
+        ((FunctionHandler)(field->default_handler))(instance_data);
+    } else {
+        FunctionHandler fn = *(FunctionHandler*)((char*)instance_data + field->offset);
+        if (fn) fn(instance_data);
+    }
 }
 
 // 按名称查找并调用函数字段
@@ -216,7 +228,6 @@ void atomic_pause() {
 }
 
 //================= Panic ===================
-//nece things
 JitPanicRecord* panic_records = NULL;
 size_t panic_count = 0;
 int panic_enabled = 1;
@@ -233,31 +244,28 @@ void jit_panic(uint32_t code) {
         case 0xDEAD0001: msg = "[PANIC] 内存初始化失败"; break;
         case 0xDEAD0002: msg = "[PANIC] 内存耗尽"; break;
         case 0xDEAD0003: msg = "[PANIC] 非法指针释放"; break;
-        case 0xDEAD0004: msg = "[PANIC] 双重释放"; break;       // 新增
-        case 0xDEAD0005: msg = "[PANIC] 非法操作码"; break;     // 新增
-        case 0xDEADBEEF: msg = "[PANIC] 自定义错误"; break;     // 你的空槽位
+        case 0xDEAD0004: msg = "[PANIC] 双重释放"; break;
+        case 0xDEAD0005: msg = "[PANIC] 非法操作码"; break;
+        case 0xDEADBEEF: msg = "[PANIC] 自定义错误"; break;
         default: msg = "[PANIC] 未知错误"; break;
     }
 
-    // 记录错误信息
     JitPanicRecord record = {
         .code = code,
         .msg = msg,
-        .file = NULL,  // 可通过宏补充
+        .file = NULL,
         .line = 0,
         .timestamp = time(NULL)
     };
 
-    // 动态扩容记录数组
     JitPanicRecord* new_records = realloc(panic_records, (panic_count + 1) * sizeof(JitPanicRecord));
     if (new_records) {
         panic_records = new_records;
         panic_records[panic_count++] = record;
     }
 
-    // 输出到stderr
     fprintf(stderr, "%s (code=0x%X)\n", msg, code);
-    abort();  // 保持原有行为
+    abort();
 }
 
 void jit_panic_cleanup() {
@@ -276,13 +284,10 @@ void jit_panic_cleanup() {
 
 // ======== Math ========
 
-// 假设传入 ctx 是一个包含两个整数的 int[2] 指针
 static inline int* get_args(void* ctx) {
     return (int*)ctx;
 }
 
-// === 基本数学函数 ===
-// 加法：result = a + b
 void* math_add_wrapper(void* ctx) {
     float* input = (float*)ctx;
     static float result;
@@ -290,7 +295,6 @@ void* math_add_wrapper(void* ctx) {
     return &result;
 }
 
-// 减法：result = a - b
 void* math_sub_wrapper(void* ctx) {
     float* input = (float*)ctx;
     static float result;
@@ -298,7 +302,6 @@ void* math_sub_wrapper(void* ctx) {
     return &result;
 }
 
-// 乘法：result = a * b
 void* math_mul_wrapper(void* ctx) {
     float* input = (float*)ctx;
     static float result;
@@ -306,19 +309,17 @@ void* math_mul_wrapper(void* ctx) {
     return &result;
 }
 
-// 除法：result = a / b（注意除以 0）
 void* math_div_wrapper(void* ctx) {
     float* input = (float*)ctx;
     static float result;
     if (input[1] == 0.0f) {
-        result = 0.0f; // 或者触发 panic
+        result = 0.0f;
     } else {
         result = input[0] / input[1];
     }
     return &result;
 }
 
-// 平方根：result = sqrt(a)
 void* math_sqrt_wrapper(void* ctx) {
     float* input = (float*)ctx;
     static float result;
@@ -326,7 +327,6 @@ void* math_sqrt_wrapper(void* ctx) {
     return &result;
 }
 
-// 幂运算：result = pow(a, b)
 void* math_pow_wrapper(void* ctx) {
     float* input = (float*)ctx;
     static float result;

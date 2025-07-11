@@ -46,6 +46,7 @@ typedef struct {
 typedef struct {
     const StructDef* def;
     void* data;
+    void** field_ptrs;
 } StructInstance;
 
 // ======== 自旋锁结构体 ========
