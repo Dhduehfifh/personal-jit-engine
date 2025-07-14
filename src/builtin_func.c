@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <math.h>
+#include <string.h>
+#include <pthread.h>
 
 //======== NULL ========
  
@@ -164,7 +166,13 @@ void destroy_struct_instance(StructInstance* inst) {
 //================= Function Field ===================
 
 // 添加函数字段（FIELD_FUNCTION）
-void add_function_field(StructDef* def, const char* name, FunctionHandler fn) {
+void add_function_field_wrapper(void* ctx) {
+    if (!ctx) return;
+    void** args = (void**)ctx;
+    StructDef* def = (StructDef*)args[0];
+    const char* name = (const char*)args[1];
+    FunctionHandler fn = (FunctionHandler)args[2];
+
     StructField field;
     field.name = safe_strdup(name);
     field.type = FIELD_FUNCTION;
@@ -177,36 +185,49 @@ void add_function_field(StructDef* def, const char* name, FunctionHandler fn) {
     def->fields[def->field_count++] = field;
 }
 
-// 更新函数处理器（支持热替换）
-void update_function_handler(StructField* field, FunctionHandler fn) {
+void update_function_handler_wrapper(void* ctx) {
+    if (!ctx) return;
+    void** args = (void**)ctx;
+    StructField* field = (StructField*)args[0];
+    FunctionHandler new_fn = (FunctionHandler)args[1];
+
     if (field && field->type == FIELD_FUNCTION) {
-        field->default_handler = fn;
+        field->default_handler = new_fn;
     }
 }
 
-// 调用函数字段（若未绑定则使用 default_handler）
-void call_function_field(void* instance_data, StructField* field) {
+void call_function_field_wrapper(void* ctx) {
+    if (!ctx) return;
+    void** args = (void**)ctx;
+    void* instance_data = args[0];
+    StructField* field = (StructField*)args[1];
+
     if (!field || field->type != FIELD_FUNCTION) return;
+
     FunctionHandler fn = *(FunctionHandler*)((char*)instance_data + field->offset);
     if (field->default_handler) {
         ((FunctionHandler)(field->default_handler))(instance_data);
-    } else {
-        FunctionHandler fn = *(FunctionHandler*)((char*)instance_data + field->offset);
-        if (fn) fn(instance_data);
+    } else if (fn) {
+        fn(instance_data);
     }
 }
 
-// 按名称查找并调用函数字段
-int call_function_by_name(void* instance_data, const StructDef* def, const char* name) {
+void call_function_by_name_wrapper(void* ctx) {
+    if (!ctx) return;
+    void** args = (void**)ctx;
+    void* instance_data = args[0];
+    const StructDef* def = (const StructDef*)args[1];
+    const char* name = (const char*)args[2];
+
     for (int i = 0; i < def->field_count; ++i) {
         StructField* f = &def->fields[i];
         if (f->type == FIELD_FUNCTION && strcmp(f->name, name) == 0) {
             call_function_field(instance_data, f);
-            return 0;
+            return;
         }
     }
-    return -1;
 }
+
 
 //================= Atomic ===================
 

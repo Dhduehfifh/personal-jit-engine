@@ -9,6 +9,7 @@ lib.init_builtin_dispatch()
 # 发送指令
 lib.jmj_push_opcode(0x01)
 lib.jmj_push_opcode(0x02)
+lib.jmj_push_opcode(0x03)
 
 # 获取结果结构体
 class JMJResult(Structure):

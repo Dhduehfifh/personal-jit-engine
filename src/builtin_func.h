@@ -73,11 +73,10 @@ void destroy_struct_instance(StructInstance* inst);
 
 // ======== 函数字段支持 ========
 typedef void (*FunctionHandler)(void* ctx);
-void add_function_field(StructDef* def, const char* name, FunctionHandler default_fn);
-void update_function_handler(StructField* field, FunctionHandler new_fn);
-void call_function_field(void* instance_data, StructField* field);
-int call_function_by_name(void* instance_data, const StructDef* def, const char* name);
-
+void add_function_field_wrapper(void* ctx);
+void update_function_handler_wrapper(void* ctx);
+void call_function_field_wrapper(void* ctx);
+void call_function_by_name_wrapper(void* ctx);
 // ======== 原子操作（C 封装） ========
 int atomic_lock(spinlock_t* lock);
 void atomic_unlock(spinlock_t* lock);

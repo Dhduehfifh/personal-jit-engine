@@ -64,7 +64,7 @@ void* create_struct_instance_wrapper(void* ctx) {
 void destroy_struct_instance_wrapper(void* ctx) {
     (void)ctx;
 }
-
+/*
 void add_function_field_wrapper(void* ctx) {
     (void)ctx;
 }
@@ -79,7 +79,7 @@ void call_function_by_name_wrapper(void* ctx) {
 
 void call_function_field_wrapper(void* ctx) {
     (void)ctx;
-}
+} */
 
 void atomic_lock_wrapper(void* ctx) {
     atomic_lock((spinlock_t*)ctx);
