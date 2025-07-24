@@ -38,9 +38,12 @@ int lib_studio_switch_library(const char* so_path) {
 
     current_handle = dlopen(so_path, RTLD_LAZY);
     if (!current_handle) {
-        fprintf(stderr, "[studio] dlopen failed: %s\n", dlerror());
+        fprintf(stderr, "[lib_studio] dlopen failed: %s\n", dlerror());
         return -2;
     }
+
+    // 载入符号前清空旧表
+    dispatch_count = 0;
 
     return 0;
 }
@@ -48,6 +51,7 @@ int lib_studio_switch_library(const char* so_path) {
 int lib_studio_register_handler(void* fn_ptr, const char* name) {
     if (dispatch_count >= MAX_DISPATCH) return -1;
     strncpy(dispatch_table[dispatch_count].name, name, 63);
+    dispatch_table[dispatch_count].name[63] = '\0'; // 安全结尾
     dispatch_table[dispatch_count].fn_ptr = fn_ptr;
     return dispatch_count++;
 }
@@ -73,7 +77,7 @@ int lib_studio_load_config(const char* config_path) {
 
         void* sym = dlsym(current_handle, line);
         if (!sym) {
-            fprintf(stderr, "[studio] dlsym failed for %s: %s\n", line, dlerror());
+            fprintf(stderr, "[lib_studio] dlsym failed for %s: %s\n", line, dlerror());
             continue;
         }
         lib_studio_register_handler(sym, line);
@@ -84,12 +88,17 @@ int lib_studio_load_config(const char* config_path) {
 }
 
 void lib_studio_init_builtin_dispatch(void) {
-    // 你可以这里注册默认的库或者函数
+    // 如果你有默认库路径和默认config，可以在这里加载
+    // 例如：
+    // lib_studio_switch_library("./libdefault.so");
+    // lib_studio_load_config("./default.config");
 }
 
+// 由汇编层调用的函数
 int lib_studio_dispatch_entry(int code, void* ctx) {
     if (code < 0 || code >= dispatch_count) return -1;
-    int (*fn)(void*) = (int (*)(void*))dispatch_table[code].fn_ptr;
+    typedef int (*fn_t)(void*);
+    fn_t fn = (fn_t)dispatch_table[code].fn_ptr;
     if (!fn) return -2;
     return fn(ctx);
 }
