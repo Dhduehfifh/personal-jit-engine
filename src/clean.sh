@@ -1,1 +1,0 @@
-rm -rf main.o builtin_func.o dispatch_table.o dispatch.o builtin_func_asm.o dispatch_asm.o test

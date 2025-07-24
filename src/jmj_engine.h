@@ -2,42 +2,28 @@
 #define JMJ_ENGINE_H
 
 #include <stdint.h>
-#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// ===== VM 状态初始化和关闭 =====
-int jmj_init(size_t page_size);           // 初始化虚拟机、分配页面
-void jmj_shutdown(void);                  // 关闭 VM 清理资源
+// 初始化引擎及 dispatch 表
+void jmj_engine_init(void);
 
-// ===== Dispatch 初始化入口（必须调用）=====
-void init_builtin_dispatch(void);         // 注册 dispatch opcode 函数表
+// 清理资源
+void jmj_engine_shutdown(void);
 
-// ===== 单条指令推送 =====
-int jmj_push_opcode(uint8_t opcode);      // 推送单条 opcode，自动判断是否函数分发
+// dispatch 调用入口
+void jmj_dispatch(uint8_t opcode, void* ctx);
 
-// ===== 字节流批量推送 =====
-int jmj_push_bytes(const uint8_t* buf, size_t len); // 批量推送 opcode 字节码
+// 获取错误日志路径
+const char* jmj_get_error_log_path(void);
 
-// ===== 运行入口（可选）=====
-int jmj_execute(void);                    // 手动触发调度循环（若需）
+// 获取当前线程 ID（用于调试或线程级权限控制）
+uint64_t jmj_get_current_thread_id(void);
 
-// ===== 获取结果 =====
-typedef struct {
-    void* data;
-    size_t size;
-} jmj_result_t;
-
-jmj_result_t jmj_get_result(void);        // 获取运算/结构处理后的数据
-
-// ===== 注册日志与 panic 回调 =====
-typedef void (*jmj_log_cb)(const char*);
-typedef void (*jmj_panic_cb)(uint32_t code);
-
-void jmj_set_log_callback(jmj_log_cb fn);
-void jmj_set_panic_callback(jmj_panic_cb fn);
+// 检查 opcode 是否是合法的函数
+int jmj_is_valid_opcode(uint8_t opcode);
 
 #ifdef __cplusplus
 }

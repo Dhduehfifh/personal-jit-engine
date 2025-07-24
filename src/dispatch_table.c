@@ -136,6 +136,11 @@ void* noop_return_null_wrapper(void* ctx) {
 }
 //reopen one of it ? doesn't suppose to be like that ....
 
+int dispatch_has_entry(uint8_t opcode) {
+    return dispatch_table[opcode] != NULL;
+}
+
+
 void init_builtin_dispatch() {
     for (int i = 0; i < MAX_DISPATCH_OPCODES; ++i)
         dispatch_table[i] = noop_return_null_wrapper;  // 全部初始化为 safe 函数

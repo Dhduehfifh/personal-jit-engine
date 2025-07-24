@@ -211,6 +211,18 @@ void call_function_field_wrapper(void* ctx) {
         fn(instance_data);
     }
 }
+//shit i forgot put this in builtin
+void call_function_field(void* instance_data, StructField* field) {
+    if (!field || field->type != FIELD_FUNCTION) return;
+
+    FunctionHandler fn = *(FunctionHandler*)((char*)instance_data + field->offset);
+    if (field->default_handler) {
+        ((FunctionHandler)(field->default_handler))(instance_data);
+    } else if (fn) {
+        fn(instance_data);
+    }
+}
+
 
 void call_function_by_name_wrapper(void* ctx) {
     if (!ctx) return;

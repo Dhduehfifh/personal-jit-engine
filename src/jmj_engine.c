@@ -1,82 +1,80 @@
 #include "jmj_engine.h"
-#include "builtin_func.h"
-#include "dispatch_table.h"
+#include "dispatch_table.h"   // 你的虚表和 dispatch_entry 实现
 
-#include <string.h>
+#include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <unistd.h>
 
-#define MAX_BYTECODE_SIZE 4096
+// 错误日志文件信息
+static const char* log_path = "/tmp/jmj_error.log";
+static FILE* log_file = NULL;
+static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static JitContext ctx;
-static uint8_t bytecode_buffer[MAX_BYTECODE_SIZE];
-static size_t bytecode_len = 0;
-
-static int is_initialized = 0;
-static jmj_log_cb log_cb = NULL;
-static jmj_panic_cb panic_cb = NULL;
-
-// ===== 初始化 VM 引擎 =====
-int jmj_init(size_t page_size) {
-    if (is_initialized) return 0;
-    memset(&ctx, 0, sizeof(JitContext));
-    ctx.requested_alloc_size = page_size;
-    jit_init(&ctx);
-    jit_alloc_page(&ctx);
-    init_builtin_dispatch();
-    is_initialized = 1;
-    return 1;
+// 错误日志线程
+static void* error_logger_thread(void* arg) {
+    pthread_mutex_lock(&log_mutex);
+    log_file = fopen(log_path, "a");
+    if (!log_file) {
+        pthread_mutex_unlock(&log_mutex);
+        return NULL;
+    }
+    time_t now = time(NULL);
+    fprintf(log_file, "\n=== JMJ 引擎启动: %s", ctime(&now));
+    fflush(log_file);
+    pthread_mutex_unlock(&log_mutex);
+    return NULL;
 }
 
-void jmj_shutdown() {
-    if (!is_initialized) return;
-    jit_free(&ctx);
-    is_initialized = 0;
+const char* jmj_get_error_log_path(void) {
+    return log_path;
 }
 
-// ===== 外部 callback 注册 =====
-void jmj_set_log_callback(jmj_log_cb fn) { log_cb = fn; }
-void jmj_set_panic_callback(jmj_panic_cb fn) { panic_cb = fn; }
+uint64_t jmj_get_current_thread_id(void) {
+    return (uint64_t)pthread_self();
+}
 
-// ===== 指令推送：单条 =====
-int jmj_push_opcode(uint8_t opcode) {
-    if (!is_initialized) return -1;
-    if (dispatch_table[opcode]) {
-        dispatch_entry(opcode, &ctx);  // 命中函数区域
+// 初始化引擎
+void jmj_engine_init(void) {
+    pthread_t tid;
+    pthread_create(&tid, NULL, error_logger_thread, NULL);
+    pthread_detach(tid);
+
+    init_builtin_dispatch();  // 初始化虚表调度器
+    init_stack_factory();     // 初始化参数栈系统（如果需要）
+    fprintf(stderr, "[JMJ] 引擎初始化完成。\n");
+}
+
+// 清理资源
+void jmj_engine_shutdown(void) {
+    pthread_mutex_lock(&log_mutex);
+    if (log_file) {
+        time_t now = time(NULL);
+        fprintf(log_file, "=== JMJ 引擎关闭: %s", ctime(&now));
+        fclose(log_file);
+        log_file = NULL;
+    }
+    pthread_mutex_unlock(&log_mutex);
+    fprintf(stderr, "[JMJ] 引擎已关闭。\n");
+}
+
+// 检查是否合法 opcode（0 表示非法）
+int jmj_is_valid_opcode(uint8_t opcode) {
+    return dispatch_has_entry(opcode);  // 你需要在 dispatch_table.c 中实现这个函数
+}
+
+// dispatch 接口
+void jmj_dispatch(uint8_t opcode, void* ctx) {
+    if (jmj_is_valid_opcode(opcode)) {
+        dispatch_entry(opcode, ctx);
     } else {
-        // 写入 struct 区域 → 模拟数据通道写入
-        if (bytecode_len < MAX_BYTECODE_SIZE)
-            bytecode_buffer[bytecode_len++] = opcode;
-    }
-    return 0;
-}
-
-// ===== 字节码批量推送 =====
-int jmj_push_bytes(const uint8_t* buf, size_t len) {
-    if (!is_initialized) return -1;
-    for (size_t i = 0; i < len; ++i) {
-        jmj_push_opcode(buf[i]);
-    }
-    return 0;
-}
-
-// ===== 手动执行 VM（可选）=====
-int jmj_execute() {
-    for (size_t i = 0; i < bytecode_len; ++i) {
-        uint8_t op = bytecode_buffer[i];
-        if (dispatch_table[op]) {
-            dispatch_entry(op, &ctx);
+        stack_factory_push(ctx);  // 不合法就当作参数丢入栈工厂
+        pthread_mutex_lock(&log_mutex);
+        if (log_file) {
+            fprintf(log_file, "[WARN] 非法 opcode: %d，已作为参数处理。\n", opcode);
+            fflush(log_file);
         }
-        // 非 opcode 跳过或处理为数据操作，可扩展
+        pthread_mutex_unlock(&log_mutex);
     }
-    bytecode_len = 0; // 执行完清空
-    return 0;
-}
-
-// ===== 获取执行结果 =====
-jmj_result_t jmj_get_result() {
-    jmj_result_t res = {
-        .data = ctx.code_page,
-        .size = ctx.code_offset
-    };
-    return res;
 }
