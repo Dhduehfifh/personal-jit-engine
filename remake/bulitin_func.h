@@ -5,13 +5,16 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 
-// 先定义结构体，避免类型未声明
+//default value of debug otpt
+bool if_debug;
+
 typedef struct Timer {
     uint64_t id;
     uint64_t start_time;
     uint64_t elapsed_time;
-    struct Timer* next;  // 哈希冲突链表
+    struct Timer* next;
 } Timer;
 
 typedef struct {
@@ -19,12 +22,16 @@ typedef struct {
     int size;
 } arr;
 
-// 外部计时器表（实际定义在 .c 中）
 extern int timer_table_size;
 extern Timer* timer_table[1024];
 
-void empty();
+// 这里只声明，不定义
+extern uint64_t* current_page;
 
+// 声明 VM 核心执行函数
+void vm_execute_core(uint64_t* core);
+
+void empty();
 void alloc(int size, arr* ctx);
 void release(int size, arr* ctx, uint64_t* release_stack_head);
 void termiate(arr* ctx);
@@ -39,11 +46,10 @@ void end_timer(uint64_t id);
 uint64_t get_elapsed_time(uint64_t id);
 void free_all_timers(void);
 
-// 多线程接口
-void vm_thread_spawn(void);   // 创建新线程
-void vm_thread_pause(void);   // 暂停当前线程
-void vm_thread_resume(void);  // 恢复指定线程（占位）
-void vm_thread_kill(void);    // 杀死指定线程
-void vm_thread_yield(void);   // 当前线程让出 CPU 时间片
+void vm_thread_spawn(void);
+void vm_thread_pause(void);
+void vm_thread_resume(void);
+void vm_thread_kill(void);
+void vm_thread_yield(void);
 
 #endif

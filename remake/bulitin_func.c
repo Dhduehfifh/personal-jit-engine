@@ -4,32 +4,54 @@
 #include <time.h>
 #include <unistd.h>
 #include <sched.h>
+#include <pthread.h>
+#include <stdio.h>
 #include "bulitin_func.h"
 
-// 定义 timer table（和大小）
+// =====================
+// 模拟 VM 运行环境（测试用）
+// =====================
+
+// 假 VM 核心
+static uint64_t dummy_core[4] = {0};
+
+// 模拟 current_page（保证 index 1 是有效指针）
+static uint64_t* fake_current_page[2] = {0, (uint64_t*)dummy_core};
+
+// 外部变量实现
+uint64_t* current_page = (uint64_t*)fake_current_page;
+
+// 假 vm_execute_core
+void vm_execute_core(uint64_t* core) {
+    if (if_debug)
+    {
+        printf("[Thread %lu] VM core executing: %p\n",
+           (unsigned long)pthread_self(), (void*)core);
+    }
+    
+}
+
+// =====================
+// 原有计时器与分配器实现
+// =====================
+
 int timer_table_size = 1024;
 Timer* timer_table[1024] = {0};
 
-// 可配置宽度
 #ifndef VM_WORD
 #define VM_WORD uint64_t
 #endif
 
-void empty() {
-    NULL;
-}
+void empty() { NULL; }
 
-// 辅助函数：取不小于 x 的 2 次幂
 static int next_power_of_two(int x) {
     int power = 1;
     while (power < x) power *= 2;
     return power;
 }
 
-// 初始化或扩容分配器
 void alloc(int size, arr* ctx) {
     if (!ctx) return;
-
     int new_size = ctx->size + size;
 
     if (!ctx->data) {
@@ -48,7 +70,6 @@ void alloc(int size, arr* ctx) {
     }
 }
 
-// 将释放的 slot 的索引压入一个逻辑栈
 void release(int size, arr* ctx, uint64_t* release_stack_head) {
     if (!ctx || !ctx->data || !release_stack_head) return;
 
@@ -59,7 +80,6 @@ void release(int size, arr* ctx, uint64_t* release_stack_head) {
     }
 }
 
-// 释放整个数组
 void termiate(arr* ctx) {
     if (ctx && ctx->data) {
         free(ctx->data);
@@ -68,18 +88,16 @@ void termiate(arr* ctx) {
     }
 }
 
-// 哈希函数
 static inline size_t hash_id(uint64_t id) {
     return id % timer_table_size;
 }
 
 static uint64_t now_ns() {
     struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);  // 修正为合法的 clock id
+    clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t)ts.tv_sec * 1000000000ull + ts.tv_nsec;
 }
 
-// 查找计时器
 static Timer* find_timer(uint64_t id) {
     size_t idx = hash_id(id);
     Timer* cur = timer_table[idx];
@@ -90,7 +108,6 @@ static Timer* find_timer(uint64_t id) {
     return NULL;
 }
 
-// 创建计时器
 Timer* new_timer(uint64_t id) {
     Timer* t = find_timer(id);
     if (t) return t;
@@ -142,14 +159,13 @@ void free_all_timers() {
     }
 }
 
-#define MAX_THREADS 256
+// =====================
+// 多线程接口
+// =====================
 
+#define MAX_THREADS 256
 static pthread_t thread_pool[MAX_THREADS];
 static int thread_used[MAX_THREADS] = {0};
-
-// 假设 vm_execute_core 存在
-extern void vm_execute_core(uint64_t* core);
-extern uint64_t* current_page;
 
 void* thread_entry(void* arg) {
     uint64_t* core = (uint64_t*)arg;
@@ -159,6 +175,14 @@ void* thread_entry(void* arg) {
 
 void vm_thread_spawn(void) {
     uint64_t* core_to_run = (uint64_t*)current_page[1];
+    if (!core_to_run) {
+        if (if_debug)
+        {
+            printf("[Error] core_to_run is NULL!\n");
+        }
+        
+        return;
+    }
 
     for (int i = 0; i < MAX_THREADS; ++i) {
         if (!thread_used[i]) {
@@ -170,11 +194,11 @@ void vm_thread_spawn(void) {
 }
 
 void vm_thread_pause(void) {
-    sleep(0);  // 等效于 yield
+    sleep(0);
 }
 
 void vm_thread_resume(void) {
-    // 占位，不实际控制线程
+    // 占位
 }
 
 void vm_thread_kill(void) {
