@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <string.h>
-#include "test_plugin.h"
+#include "libplugin.h"
 
 // 基础类型：无返回
 void test1_int(int x) {

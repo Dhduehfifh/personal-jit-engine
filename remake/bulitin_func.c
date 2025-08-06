@@ -1,214 +1,387 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#include <unistd.h>
-#include <sched.h>
-#include <pthread.h>
-#include <stdio.h>
+#pragma once
 #include "bulitin_func.h"
+#include "returns.h"
+#include <stdint.h>
 
-// =====================
-// 模拟 VM 运行环境（测试用）
-// =====================
+//tool
+static inline uint64_t next_power_of_two(uint64_t n) {
+    if (n == 0) return 1;
+    n--;
+    n |= n >> 1;
+    n |= n >> 2;
+    n |= n >> 4;
+    n |= n >> 8;
+    n |= n >> 16;
+    n |= n >> 32;
+    return n + 1;
+}
 
-// 假 VM 核心
-static uint64_t dummy_core[4] = {0};
+extern return_pool_t* current_return_pool = NULL;
 
-// 模拟 current_page（保证 index 1 是有效指针）
-static uint64_t* fake_current_page[2] = {0, (uint64_t*)dummy_core};
+void empty(uint64_t dummy) {
+    return;
+};
+//do nothing
 
-// 外部变量实现
-uint64_t* current_page = (uint64_t*)fake_current_page;
-
-// 假 vm_execute_core
-void vm_execute_core(uint64_t* core) {
-    if (if_debug)
-    {
-        printf("[Thread %lu] VM core executing: %p\n",
-           (unsigned long)pthread_self(), (void*)core);
+//std.io, alloc , release , terminate
+//nece tools
+static uint64_t arr_vtable_alloc(arr* a) {
+    for (uint64_t i = 0; i < ARR_VTABLE_MAX; i++) {
+        if (!arr_vtable[i].used){
+            arr_vtable[i].used = true;
+            arr_vtable[i].array = a;
+            return i;
+        }
     }
-    
+    return UINT64_MAX; // no useable 
+}
+
+//search arr* by id
+static arr* arr_vtable_get(uint64_t id) {
+    if (id >= ARR_VTABLE_MAX) return NULL;
+    if (!arr_vtable[id].used) return NULL;
+    return arr_vtable[id].array;
+}
+
+//release id by fake table
+static void arr_vtable_free(uint64_t id) {
+    if (id >= ARR_VTABLE_MAX) return;
+    arr_vtable[id].used = false;
+    arr_vtable[id].array = NULL;
 }
 
 // =====================
-// 原有计时器与分配器实现
+// 内建函数实现（已改为使用 return_pool_t）
 // =====================
-
-int timer_table_size = 1024;
-Timer* timer_table[1024] = {0};
-
-#ifndef VM_WORD
-#define VM_WORD uint64_t
-#endif
-
-void empty() { NULL; }
-
-static int next_power_of_two(int x) {
-    int power = 1;
-    while (power < x) power *= 2;
-    return power;
-}
-
-void alloc(int size, arr* ctx) {
-    if (!ctx) return;
-    int new_size = ctx->size + size;
+void alloc(uint64_t size, uint64_t ctx_ptr) {
+    arr* ctx = (arr*)ctx_ptr;
+    if (!ctx) {
+        return_pool_alloc_data(current_return_pool, 0); // 占位返回值
+        return;
+    }
+    uint64_t new_size = ctx->size + size;
 
     if (!ctx->data) {
         ctx->size = next_power_of_two(size);
-        ctx->data = (VM_WORD*)malloc(sizeof(VM_WORD) * ctx->size);
+        ctx->data = (uint64_t*)malloc(sizeof(uint64_t) * ctx->size);
         if (ctx->data) {
-            memset(ctx->data, 0, sizeof(VM_WORD) * ctx->size);
+            memset(ctx->data, 0, sizeof(uint64_t) * ctx->size);
+        } else {
+            return_pool_alloc_data(current_return_pool, 0);
+            return;
         }
     } else if (new_size > ctx->size) {
-        int expanded_size = next_power_of_two(new_size);
-        VM_WORD* new_data = (VM_WORD*)realloc(ctx->data, sizeof(VM_WORD) * expanded_size);
-        if (!new_data) return;
-        memset(new_data + ctx->size, 0, sizeof(VM_WORD) * (expanded_size - ctx->size));
+        uint64_t expanded_size = next_power_of_two(new_size);
+        uint64_t* new_data = (uint64_t*)realloc(ctx->data, sizeof(uint64_t) * expanded_size);
+        if (!new_data) {
+            return_pool_alloc_data(current_return_pool, 0);
+            return;
+        }
+        memset(new_data + ctx->size, 0, sizeof(uint64_t) * (expanded_size - ctx->size));
         ctx->data = new_data;
         ctx->size = expanded_size;
     }
+
+    return_pool_alloc_data(current_return_pool, 1); // 成功
 }
 
-void release(int size, arr* ctx, uint64_t* release_stack_head) {
-    if (!ctx || !ctx->data || !release_stack_head) return;
-
-    for (int i = 0; i < size; ++i) {
+void release(uint64_t size, uint64_t ctx_ptr, uint64_t release_stack_head_ptr) {
+    arr* ctx = (arr*)ctx_ptr;
+    uint64_t* release_stack_head = (uint64_t*)release_stack_head_ptr;
+    if (!ctx || !ctx->data || !release_stack_head) {
+        return_pool_alloc_data(current_return_pool, 0);
+        return;
+    }
+    for (uint64_t i = 0; i < size; ++i) {
         uint64_t slot_index = *release_stack_head;
-        ctx->data[slot_index] = (VM_WORD)(slot_index);
+        ctx->data[slot_index] = slot_index; // 清空寄存器位置
         (*release_stack_head)++;
     }
+    return_pool_alloc_data(current_return_pool, 1);
 }
 
-void termiate(arr* ctx) {
+void terminate(uint64_t ctx_ptr) {
+    arr* ctx = (arr*)ctx_ptr;
     if (ctx && ctx->data) {
-        free(ctx->data);
+        free(ctx->data); // 真正释放内存回收给操作系统
         ctx->data = NULL;
         ctx->size = 0;
     }
+    return_pool_alloc_data(current_return_pool, 1);
 }
 
-static inline size_t hash_id(uint64_t id) {
-    return id % timer_table_size;
+// VM 程序计数器（外部 VM 主循环会用到）
+uint64_t vm_pc = 0;
+
+// 纯比较，不跳转
+void cmp_only(uint64_t place_a, uint64_t place_b, uint64_t ctx_ptr) {
+    arr* ctx = (arr*)ctx_ptr;
+    if (!ctx || !ctx->data) return;
+    uint64_t val_a = ctx->data[place_a];
+    uint64_t val_b = ctx->data[place_b];
+    if (val_a == val_b) {
+        // 存到全局比较标志
+        ctx->data[0] = 1; // 这里用 data[0] 存 flag_eq（你也可以单独定义一个全局变量）
+    } else {
+        ctx->data[0] = 0;
+    }
 }
 
-static uint64_t now_ns() {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000000000ull + ts.tv_nsec;
+// 相等则跳转
+void cmp_eq(uint64_t place_a, uint64_t place_b,
+            uint64_t jump_eq_plc, uint64_t jump_not_eq_plc,
+            uint64_t ctx_ptr) {
+    arr* ctx = (arr*)ctx_ptr;
+    if (!ctx || !ctx->data) return;
+    uint64_t val_a = ctx->data[place_a];
+    uint64_t val_b = ctx->data[place_b];
+    if (val_a == val_b) {
+        vm_pc = jump_eq_plc;
+    } else {
+        vm_pc = jump_not_eq_plc;
+    }
 }
 
-static Timer* find_timer(uint64_t id) {
-    size_t idx = hash_id(id);
-    Timer* cur = timer_table[idx];
-    while (cur) {
-        if (cur->id == id) return cur;
-        cur = cur->next;
+// 不相等则跳转
+void cmp_not_eq(uint64_t place_a, uint64_t place_b,
+                uint64_t jump_not_eq_plc, uint64_t jump_eq_plc,
+                uint64_t ctx_ptr) {
+    arr* ctx = (arr*)ctx_ptr;
+    if (!ctx || !ctx->data) return;
+    uint64_t val_a = ctx->data[place_a];
+    uint64_t val_b = ctx->data[place_b];
+    if (val_a != val_b) {
+        vm_pc = jump_not_eq_plc;
+    } else {
+        vm_pc = jump_eq_plc;
+    }
+}
+
+// 直接跳转
+void jump_to(uint64_t place) {
+    vm_pc = place;
+}
+
+void add_u64(uint64_t plc_a, uint64_t plc_b, uint64_t plc_result, uint64_t ctx_ptr) {
+    arr* ctx = (arr*)ctx_ptr;
+    if (!ctx || !ctx->data) return;
+    ctx->data[plc_result] = ctx->data[plc_a] + ctx->data[plc_b];
+}
+
+void sub_u64(uint64_t plc_a, uint64_t plc_b, uint64_t plc_result, uint64_t ctx_ptr) {
+    arr* ctx = (arr*)ctx_ptr;
+    if (!ctx || !ctx->data) return;
+    ctx->data[plc_result] = ctx->data[plc_a] - ctx->data[plc_b];
+}
+
+void mul_u64(uint64_t plc_a, uint64_t plc_b, uint64_t plc_result, uint64_t ctx_ptr) {
+    arr* ctx = (arr*)ctx_ptr;
+    if (!ctx || !ctx->data) return;
+    ctx->data[plc_result] = ctx->data[plc_a] * ctx->data[plc_b];
+}
+
+void div_u64(uint64_t plc_a, uint64_t plc_b, uint64_t plc_result, uint64_t ctx_ptr) {
+    arr* ctx = (arr*)ctx_ptr;
+    if (!ctx || !ctx->data) return;
+    if (ctx->data[plc_b] == 0) {
+        ctx->data[plc_result] = 0; // 防止除零
+        return;
+    }
+    ctx->data[plc_result] = ctx->data[plc_a] / ctx->data[plc_b];
+}
+
+// move: a -> b (同时清空 a)
+void move(uint64_t plc_a, uint64_t plc_b, uint64_t ctx_ptr) {
+    arr* ctx = (arr*)ctx_ptr;
+    if (!ctx || !ctx->data) return;
+    ctx->data[plc_b] = ctx->data[plc_a];
+    ctx->data[plc_a] = 0;
+}
+
+// copy: a -> b (不清空 a)
+void copy(uint64_t plc_a, uint64_t plc_b, uint64_t ctx_ptr) {
+    arr* ctx = (arr*)ctx_ptr;
+    if (!ctx || !ctx->data) return;
+    ctx->data[plc_b] = ctx->data[plc_a];
+}
+
+
+// =====================
+// Timer 实现
+// =====================
+static uint64_t timer_start_cycles = 0;
+static uint64_t timer_end_cycles = 0;
+static uint64_t timer_intervals[16][2]; // 多段计时存储
+static uint64_t timer_count = 0;
+
+static inline uint64_t get_tsc_value(void) {
+    uint64_t hi, lo;
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((uint64_t)hi << 32) | lo;
+}
+
+// 开始全局计时
+void timer_start_now(uint64_t dummy) {
+    timer_start_cycles = get_tsc_value();
+}
+
+// 结束计时并返回耗时
+void timer_end_now(uint64_t dummy) {
+    timer_end_cycles = get_tsc_value();
+    uint64_t elapsed = timer_end_cycles - timer_start_cycles;
+    return_pool_alloc_data(current_return_pool, elapsed);
+}
+
+// 多段计时开始
+void timer_start_segment(uint64_t idx) {
+    if (idx >= 16) return;
+    timer_intervals[idx][0] = get_tsc_value();
+}
+
+// 多段计时结束并返回耗时
+void timer_end_segment(uint64_t idx) {
+    if (idx >= 16) return;
+    timer_intervals[idx][1] = get_tsc_value();
+    uint64_t elapsed = timer_intervals[idx][1] - timer_intervals[idx][0];
+    return_pool_alloc_data(current_return_pool, elapsed);
+}
+
+
+// =====================
+// VM Thread 控制（模式 1）
+// =====================
+
+typedef struct {
+    uint64_t func_ptr; // 线程执行入口（VM 内部函数指针）
+} vm_thread_arg_t;
+
+static void* vm_thread_entry(void* arg) {
+    vm_thread_arg_t* t = (vm_thread_arg_t*)arg;
+    if (t && t->func_ptr) {
+        void (*func)(void) = (void (*)(void))t->func_ptr;
+        func();
+    }
+    free(t);
+    return NULL;
+}
+
+// 启动新的 VM 执行线程
+void vm_thread_spawn(uint64_t vm_func_ptr) {
+    pthread_t tid;
+    vm_thread_arg_t* arg = malloc(sizeof(vm_thread_arg_t));
+    if (!arg) return;
+    arg->func_ptr = vm_func_ptr;
+    pthread_create(&tid, NULL, vm_thread_entry, arg);
+    return_pool_alloc_data(current_return_pool, (uint64_t)tid);
+}
+
+// 等待线程结束
+void vm_thread_join(uint64_t thread_id) {
+    pthread_t tid = (pthread_t)thread_id;
+    pthread_join(tid, NULL);
+}
+
+// 杀掉线程（强制终止）
+void vm_thread_kill(uint64_t thread_id) {
+    pthread_t tid = (pthread_t)thread_id;
+    pthread_cancel(tid);
+}
+
+// 当前线程让出 CPU
+void vm_thread_yield(uint64_t dummy) {
+    sched_yield();
+}
+
+
+//tool sha 256 get first 8 bit transfer to uint64_t
+static uint64_t file_hash64(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return 0;
+
+    SHA256_CTX ctx;
+    SHA256_Init(&ctx);
+
+    uint8_t buf[4096];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), f)) > 0) {
+        SHA256_Update(&ctx, buf, n);
+    }
+    fclose(f);
+
+    uint8_t digest[SHA256_DIGEST_LENGTH];
+    SHA256_Final(digest, &ctx);
+
+    uint64_t hash_val;
+    memcpy(&hash_val, digest, sizeof(uint64_t));
+    return hash_val;
+}
+
+static external_lib_t *find_lib_by_hash(uint64_t hash) {
+    for (size_t i = 0; i < external_lib_count; i++) {
+        if (external_libs[i].hash == hash) {
+            return &external_libs[i];
+        }
     }
     return NULL;
 }
 
-Timer* new_timer(uint64_t id) {
-    Timer* t = find_timer(id);
-    if (t) return t;
+// ===== 挂载动态库 =====
+void builtin_mount_dynamic_lib(uint64_t path_ptr, uint64_t func_names_ptr, uint64_t func_count) {
+    const char *path = (const char *)path_ptr;
+    const char **func_names = (const char **)func_names_ptr;
 
-    size_t idx = hash_id(id);
-    Timer* new_t = (Timer*)malloc(sizeof(Timer));
-    if (!new_t) return NULL;
+    if (external_lib_count >= MAX_LIBS) return;
 
-    new_t->id = id;
-    new_t->start_time = 0;
-    new_t->elapsed_time = 0;
-    new_t->next = timer_table[idx];
-    timer_table[idx] = new_t;
-    return new_t;
-}
+    uint64_t hash = file_hash64(path);
+    if (!hash) return;
 
-void start_timer(uint64_t id) {
-    Timer* t = find_timer(id);
-    if (!t) t = new_timer(id);
-    if (!t) return;
-    t->start_time = now_ns();
-}
-
-void end_timer(uint64_t id) {
-    Timer* t = find_timer(id);
-    if (!t || t->start_time == 0) return;
-
-    uint64_t end_time = now_ns();
-    if (end_time > t->start_time) {
-        t->elapsed_time += (end_time - t->start_time);
-    }
-    t->start_time = 0;
-}
-
-uint64_t get_elapsed_time(uint64_t id) {
-    Timer* t = find_timer(id);
-    return t ? t->elapsed_time : 0;
-}
-
-void free_all_timers() {
-    for (int i = 0; i < timer_table_size; i++) {
-        Timer* cur = timer_table[i];
-        while (cur) {
-            Timer* next = cur->next;
-            free(cur);
-            cur = next;
-        }
-        timer_table[i] = NULL;
-    }
-}
-
-// =====================
-// 多线程接口
-// =====================
-
-#define MAX_THREADS 256
-static pthread_t thread_pool[MAX_THREADS];
-static int thread_used[MAX_THREADS] = {0};
-
-void* thread_entry(void* arg) {
-    uint64_t* core = (uint64_t*)arg;
-    vm_execute_core(core);
-    return NULL;
-}
-
-void vm_thread_spawn(void) {
-    uint64_t* core_to_run = (uint64_t*)current_page[1];
-    if (!core_to_run) {
-        if (if_debug)
-        {
-            printf("[Error] core_to_run is NULL!\n");
-        }
-        
+    if (find_lib_by_hash(hash)) {
+        return_pool_alloc_data(current_return_pool, hash);
         return;
     }
 
-    for (int i = 0; i < MAX_THREADS; ++i) {
-        if (!thread_used[i]) {
-            pthread_create(&thread_pool[i], NULL, thread_entry, (void*)core_to_run);
-            thread_used[i] = 1;
-            break;
-        }
+    void *handle = dlopen(path, RTLD_NOW);
+    if (!handle) return;
+
+    external_lib_t *lib = &external_libs[external_lib_count];
+    memset(lib, 0, sizeof(*lib));
+
+    lib->hash = hash;
+    lib->handle = handle;
+    lib->func_count = func_count;
+
+    for (size_t i = 0; i < func_count; i++) {
+        void *sym = dlsym(handle, func_names[i]);
+        lib->func_table[i] = sym;
     }
+
+    external_lib_count++;
+
+    return_pool_alloc_data(current_return_pool, hash); // 把库 hash 返回到 return_pool
 }
 
-void vm_thread_pause(void) {
-    sleep(0);
+// ===== 调用动态库函数 =====
+void builtin_call_dynamic_func(uint64_t lib_hash, uint64_t func_index, uint64_t args_ptr, uint64_t argc) {
+    external_lib_t *lib = find_lib_by_hash(lib_hash);
+    if (!lib) return;
+
+    if (func_index >= lib->func_count) return;
+    void *func_ptr = lib->func_table[func_index];
+    if (!func_ptr) return;
+
+    typedef uint64_t (*func_t)(uint64_t, uint64_t, uint64_t, uint64_t,
+                               uint64_t, uint64_t, uint64_t, uint64_t);
+
+    func_t f = (func_t)func_ptr;
+
+    uint64_t *args = (uint64_t *)args_ptr;
+    uint64_t argv[MAX_FUNC_ARGS] = {0};
+    if (argc > MAX_FUNC_ARGS) argc = MAX_FUNC_ARGS;
+    for (size_t i = 0; i < argc; i++) argv[i] = args[i];
+
+    uint64_t ret = f(argv[0], argv[1], argv[2], argv[3],
+                     argv[4], argv[5], argv[6], argv[7]);
+
+    return_pool_alloc_data(current_return_pool, ret);
 }
 
-void vm_thread_resume(void) {
-    // 占位
-}
-
-void vm_thread_kill(void) {
-    uint64_t tid = current_page[1];
-    if (tid < MAX_THREADS && thread_used[tid]) {
-        pthread_cancel(thread_pool[tid]);
-        thread_used[tid] = 0;
-    }
-}
-
-void vm_thread_yield(void) {
-    sched_yield();
-}
